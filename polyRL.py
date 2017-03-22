@@ -18,22 +18,30 @@ from collections import namedtuple
 import matplotlib.pyplot as plt
 from numpy import linalg as LA
 
+"""
+Grid World Environment
+
+"""
+# from collections import defaultdict
+# from lib.envs.gridworld import GridworldEnv
+# from lib import plotting
+# env = GridworldEnv()
 
 """
 WIndy Grid World Environment
 """
-# from collections import defaultdict
-# from lib.envs.windy_gridworld import WindyGridworldEnv
-# from lib import plotting
-# env = WindyGridworldEnv()
+from collections import defaultdict
+from lib.envs.windy_gridworld import WindyGridworldEnv
+from lib import plotting
+env = WindyGridworldEnv()
 
 """
 Cliff Walking Environment
 """
-from collections import defaultdict
-from lib.envs.cliff_walking import CliffWalkingEnv
-from lib import plotting
-env = CliffWalkingEnv()
+# from collections import defaultdict
+# from lib.envs.cliff_walking import CliffWalkingEnv
+# from lib import plotting
+# env = CliffWalkingEnv()
 
 
 """
@@ -209,7 +217,7 @@ def LP_Exploration(w_param, length_polymer_chain, L_p, b_step_size, sigma, actio
 """
 Baselines Algorithms
 """
-def poly_rl_q_learning(env, w_param, num_episodes, discount_factor=1.0, alpha = 0.1, epsilon=0.1, epsilon_decay=0.999, sigma = 0.5, L_p = 200, b_step_size = 1, length_polymer_chain = 1000):
+def poly_rl_q_learning(env, w_param, num_episodes, discount_factor=1.0, alpha = 0.1, epsilon=0.1, epsilon_decay=0.999, sigma = 0.5, L_p = 200, b_step_size = 1, length_polymer_chain = 500):
 
 	stats = plotting.EpisodeStats(
 		episode_lengths=np.zeros(num_episodes),
@@ -220,7 +228,7 @@ def poly_rl_q_learning(env, w_param, num_episodes, discount_factor=1.0, alpha = 
 
 	for i_episode in range(num_episodes):
 		
-		print "Episode Number, PolYRL Q Learning:", i_episode
+		print "Episode Number, PolyRL Q Learning:", i_episode
 
 		state = env.reset()
 
@@ -242,22 +250,27 @@ def poly_rl_q_learning(env, w_param, num_episodes, discount_factor=1.0, alpha = 
 
 		w_param = updated_w_param
 
-		#for each one step in the environment
+		#for each step in the environment
 		for t in itertools.count():
 
-			#choose action based on epsilon greedy policy
-			action_probs = policy(state)
-			action = np.random.choice(np.arange(len(action_probs)), p = action_probs)			
+
+			# action_trajectory_chain, state_trajectory_chain, updated_Q_Value, updated_w_param = LP_Exploration(w_param, length_polymer_chain, L_p, b_step_size, sigma, action, state, alpha, discount_factor, env.action_space.n)
+			# w_param = updated_w_param
+
+
+			# #choose action based on epsilon greedy policy
+			# action_probs = policy(state)
+			# action = np.random.choice(np.arange(len(action_probs)), p = action_probs)			
+
+			next_state, reward, done, _ = env.step(action)
+			stats.episode_rewards[i_episode] += reward
+			stats.episode_lengths[i_episode] = t
 
 			#Q values for current state, action
 			features_state = featurize_state(state)
 			q_values = np.dot(w_param.T, features_state)
 			q_values_state_action = q_values[action]
 
-
-			next_state, reward, done, _ = env.step(action)
-			stats.episode_rewards[i_episode] += reward
-			stats.episode_lengths[i_episode] = t
 
 			next_action_probs = policy(next_state)
 			next_action = np.random.choice(np.arange(len(next_action_probs)), p = next_action_probs)
