@@ -21,7 +21,10 @@ import pandas as pd
 #   Training Parameters
 # ==========================
 # Max training steps
-MAX_EPISODES = 50000
+# MAX_EPISODES = 50000
+
+MAX_EPISODES = 5000
+
 
 # Max episode length
 MAX_EP_STEPS = 1000

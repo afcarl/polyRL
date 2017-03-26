@@ -32,7 +32,7 @@ from sklearn.kernel_approximation import RBFSampler
 # Max training steps
 # MAX_EPISODES = 50000
 
-MAX_EPISODES = 5000
+MAX_EPISODES = 1000
 
 # Max episode length
 MAX_EP_STEPS = 1000
@@ -304,6 +304,7 @@ def LP_Exploration(env, action, state, actor, critic, length_polymer_chain, L_p,
     theta_mean = np.arccos( np.exp(   np.true_divide(-b_step_size, L_p) )  )
     theta = np.random.normal(theta_mean, sigma, 1)
 
+
     action_trajectory_chain= 0
     state_trajectory_chain = 0
 
@@ -326,19 +327,20 @@ def LP_Exploration(env, action, state, actor, critic, length_polymer_chain, L_p,
         phi_t = featurize_action(action)
         phi_t_1 = featurize_action(action_sample)
 
-        action_similarity = np.arccos( np.true_divide(  (np.dot(phi_t, phi_t_1)),   np.multiply(  LA.norm(phi_t), LA.norm(phi_t_1) ) ) )
+        sim_norm = np.true_divide(  (np.dot(phi_t, phi_t_1)),   np.multiply(  LA.norm(phi_t), LA.norm(phi_t_1) ) ) 
+        action_similarity = np.arccos(sim_norm)
 
 
-        similarity_metric = np.absolute(action_similarity - theta)
-
-
-        """
-        UNCOMMENT THESE - to monitor the similarity metric
+        # action_similarity = np.arccos( np.true_divide(  (np.dot(phi_t, phi_t_1)),   np.multiply(  LA.norm(phi_t), LA.norm(phi_t_1) ) ) )
 
         print "Theta", theta
+
         print "Action Similarity", action_similarity
-        print "Similarity Metric", similarity_metric
-        """
+
+        similarity_metric = np.absolute(action_similarity - theta)
+        
+        print "Simiarity Metric", similarity_metric
+
 
         if similarity_metric <= similarity_threshold:
             chosen_action = action_sample
@@ -556,7 +558,7 @@ def main(_):
         rewards_polyddpg = pd.Series(stats.episode_rewards).rolling(1, min_periods=1).mean()    
         cum_rwd = rewards_polyddpg
 
-        np.save('/Users/Riashat/Documents/PhD_Research/BASIC_ALGORITHMS/My_Implementations/Persistence_Length_Exploration/Results/'  + 'PolyRL_DDPG' + '.npy', cum_rwd)
+        np.save('/Users/Riashat/Documents/PhD_Research/BASIC_ALGORITHMS/My_Implementations/Persistence_Length_Exploration/Results/'  + 'Trial_PolyRL_DDPG' + '.npy', cum_rwd)
 
         if GYM_MONITOR_EN:
             env.monitor.close()
