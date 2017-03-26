@@ -298,7 +298,7 @@ def LP_Exploration(env, action, state, actor, critic, length_polymer_chain, L_p,
 
     chain_actions = action
     chain_states = state
-    similarity_threshold = 2
+    similarity_threshold = 0.5
 
     #draw theta from a Gaussian distribution
     theta_mean = np.arccos( np.exp(   np.true_divide(-b_step_size, L_p) )  )
