@@ -19,6 +19,7 @@ from numpy import linalg as LA
 from lib import plotting
 import pandas as pd
 
+from numpy.linalg import inv
 
 import sklearn.pipeline
 import sklearn.preprocessing
@@ -32,7 +33,7 @@ from sklearn.kernel_approximation import RBFSampler
 # Max training steps
 # MAX_EPISODES = 50000
 
-MAX_EPISODES = 5000
+MAX_EPISODES = 2000
 
 # Max episode length
 MAX_EP_STEPS = 1000
@@ -61,7 +62,13 @@ MONITOR_DIR = './results/gym_ddpg'
 RANDOM_SEED = 1234
 # Size of replay buffer
 BUFFER_SIZE = 10000
+
+
+#ORIGINAL
 MINIBATCH_SIZE = 64
+
+
+# MINIBATCH_SIZE = 128
 
 # ===========================
 #   Actor and Critic DNNs
@@ -76,11 +83,19 @@ scaler_action = sklearn.preprocessing.StandardScaler()
 scaler_action.fit(action_examples)
 
 
+# featurizer_action = sklearn.pipeline.FeatureUnion([
+#         ("rbf1", RBFSampler(gamma=5.0, n_components=100)),
+#         ("rbf2", RBFSampler(gamma=2.0, n_components=100)),
+#         ("rbf3", RBFSampler(gamma=1.0, n_components=100)),
+#         ("rbf4", RBFSampler(gamma=0.5, n_components=100))
+#         ])
+# featurizer_action.fit(scaler_action.transform(action_examples))
+
+
+
 featurizer_action = sklearn.pipeline.FeatureUnion([
-        ("rbf1", RBFSampler(gamma=5.0, n_components=100)),
-        ("rbf2", RBFSampler(gamma=2.0, n_components=100)),
-        ("rbf3", RBFSampler(gamma=1.0, n_components=100)),
-        ("rbf4", RBFSampler(gamma=0.5, n_components=100))
+        ("rbf1", RBFSampler(gamma=5.0, n_components=1)),
+        ("rbf2", RBFSampler(gamma=2.0, n_components=1))
         ])
 featurizer_action.fit(scaler_action.transform(action_examples))
 
@@ -298,7 +313,7 @@ def LP_Exploration(env, action, state, actor, critic, length_polymer_chain, L_p,
 
     chain_actions = action
     chain_states = state
-    similarity_threshold = 0.5
+
 
     #draw theta from a Gaussian distribution
     theta_mean = np.arccos( np.exp(   np.true_divide(-b_step_size, L_p) )  )
@@ -313,101 +328,93 @@ def LP_Exploration(env, action, state, actor, critic, length_polymer_chain, L_p,
     # Initialize replay memory
     replay_buffer = ReplayBuffer(BUFFER_SIZE, RANDOM_SEED)
 
+    operator = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta),np.cos(theta)]]).reshape(2,2)
+
 
     #building the polymer chain
     while True:
 
-        action_sample = np.random.uniform(low = - 2.0, high = 2.0, size=(1,))
+        coin_flip = np.random.randint(2, size=1)
+
+        if coin_flip == 0:
+            operator = np.array([[np.cos(theta), - np.sin(theta)], [np.sin(theta),  np.cos(theta)]]).reshape(2,2)
+        elif coin_flip == 1:
+            operator = np.array([[np.cos(theta), np.sin(theta)], [- np.sin(theta),  np.cos(theta)]]).reshape(2,2)
 
 
-        # phi_t = np.linspace(0, action, 100)
-        # phi_t_1 = np.linspace(9, action_sample, 100)
 
         phi_t = featurize_action(action)
-        phi_t_1 = featurize_action(action_sample)
 
-        action_similarity = np.arccos( np.true_divide(  (np.dot(phi_t, phi_t_1)),   np.multiply(  LA.norm(phi_t), LA.norm(phi_t_1) ) ) )
+        phi_t_1 = phi_t + np.dot(operator, phi_t)
+
+        #revert back and multiply with inverse of operator to
+        #get the A_{t+1}
+        chosen_action = np.dot(inv(operator), phi_t_1)
+
+        chosen_action = phi_t_1
 
 
-        similarity_metric = np.absolute(action_similarity - theta)
+        chain_actions = np.append(chain_actions, chosen_action)
 
-        print "Theta", theta
-        print "Action Similarity", action_similarity
-        print "Similarity Metric", similarity_metric
+        chosen_state, reward, terminal, _ = env.step(chosen_action)
+ 
+        chain_states = np.append(chain_states, chosen_state)    
 
 
         """
-        UNCOMMENT THESE - to monitor the similarity metric
-
-        print "Theta", theta
-        print "Action Similarity", action_similarity
-        print "Similarity Metric", similarity_metric
+        CHEAT HERE
         """
-
-        if similarity_metric <= similarity_threshold:
-
-            print "Action Accepted", action_sample
+        ####CHEAT - need to convert feature(action) to action
+        chosen_action = chosen_action[0]
 
 
-            chosen_action = action_sample
-            chain_actions = np.append(chain_actions, chosen_action)
+        ####CHANGED THE REPLAY BUFFER HERE
+        # replay_buffer.add(np.reshape(state, (actor.s_dim,)), np.reshape(chosen_action, (actor.a_dim+1,)), reward, terminal, np.reshape(chosen_state, (actor.s_dim,)))
 
-            chosen_state, reward, terminal, _ = env.step(chosen_action)
-            chain_states = np.append(chain_states, chosen_state)    
+        replay_buffer.add(np.reshape(state, (actor.s_dim,)), np.reshape(chosen_action, (actor.a_dim,)), reward, terminal, np.reshape(chosen_state, (actor.s_dim,)))
 
-            replay_buffer.add(np.reshape(state, (actor.s_dim,)), np.reshape(chosen_action, (actor.a_dim,)), reward, terminal, np.reshape(chosen_state, (actor.s_dim,)))
-
-            print "Chosen State", chosen_state
-
-            print "Chosen Action", chosen_action
-
-            print "Reward", reward
-
-            print "Terminal", terminal
-
-
-            if terminal:
-                chosen_state = env.reset()
+        if terminal:
+            chosen_state = env.reset()
 
 
 
-            if replay_buffer.size() > MINIBATCH_SIZE:
-                s_batch, a_batch, r_batch, t_batch, s2_batch = replay_buffer.sample_batch(MINIBATCH_SIZE)
+        if replay_buffer.size() > MINIBATCH_SIZE:
+            s_batch, a_batch, r_batch, t_batch, s2_batch = replay_buffer.sample_batch(MINIBATCH_SIZE)
 
-                target_q = critic.predict_target(s2_batch, actor.predict_target(s2_batch))
-
-
-                y_i = []
-                for k in xrange(MINIBATCH_SIZE):
-                    if t_batch[k]:
-                        y_i.append(r_batch[k])
-                    else:
-                        y_i.append(r_batch[k] + GAMMA * target_q[k])
+            target_q = critic.predict_target(s2_batch, actor.predict_target(s2_batch))
 
 
-                predicted_q_value, _ = critic.train(s_batch, a_batch, np.reshape(y_i, (MINIBATCH_SIZE, 1)))
 
-                ep_ave_max_q += np.amax(predicted_q_value)
-
-                a_outs = actor.predict(s_batch)
-                grads = critic.action_gradients(s_batch, a_outs)
-                actor.train(s_batch, grads[0])
-
-
-                actor.update_target_network()
-                critic.update_target_network()
+            y_i = []
+            for k in xrange(MINIBATCH_SIZE):
+                if t_batch[k]:
+                    y_i.append(r_batch[k])
+                else:
+                    y_i.append(r_batch[k] + GAMMA * target_q[k])
 
 
-            if replay_buffer.size() > length_polymer_chain:
-                end_traj_action = chosen_action
-                end_traj_state = chosen_state
-                break
+            #### PROBEM : Probel with A as feature vector is here
+            predicted_q_value, _ = critic.train(s_batch, a_batch, np.reshape(y_i, (MINIBATCH_SIZE, 1)))
+
+            ep_ave_max_q += np.amax(predicted_q_value)
+
+            a_outs = actor.predict(s_batch)
+            grads = critic.action_gradients(s_batch, a_outs)
+            actor.train(s_batch, grads[0])
+
+            actor.update_target_network()
+            critic.update_target_network()
+
+
+        if replay_buffer.size() > length_polymer_chain:
+            end_traj_action = chosen_action
+            end_traj_state = chosen_state
+            break
 
 
 
     action_trajectory_chain = chain_actions
     state_trajectory_chain = chain_states
-
 
 
     return action_trajectory_chain, state_trajectory_chain, end_traj_action, end_traj_state
@@ -446,7 +453,6 @@ def train(sess, env, actor, critic, length_polymer_chain, L_p, b_step_size, sigm
         s = env.reset()
         initial_action = env.action_space.sample()
 
-
         ep_reward = 0
         ep_ave_max_q = 0
 
@@ -456,7 +462,6 @@ def train(sess, env, actor, critic, length_polymer_chain, L_p, b_step_size, sigm
         action_trajectory_chain, state_trajectory_chain, end_traj_action, end_traj_state = LP_Exploration(env, initial_action, s, actor, critic, length_polymer_chain, L_p, b_step_size, sigma, replay_buffer, ep_ave_max_q)
 
         s = end_traj_state
-
         a = end_traj_action
 
 
@@ -466,12 +471,18 @@ def train(sess, env, actor, critic, length_polymer_chain, L_p, b_step_size, sigm
                 env.render()
 
             # Added exploration noise
+            ### this is the usual exploration as done in DDPG
+            ### we still do this? Or choose next a based on L_p exploration?
+            """
+            CHECK THIS
+            """
             a = actor.predict(np.reshape(s, (1, 3))) + (1. / (1. + i))
+
+
 
             s2, r, terminal, info = env.step(a)
 
             replay_buffer.add(np.reshape(s, (actor.s_dim,)), np.reshape(a, (actor.a_dim,)), r, terminal, np.reshape(s2, (actor.s_dim,)))
-
 
             # Keep adding experience to the memory until
             # there are at least minibatch size samples
@@ -572,7 +583,7 @@ def main(_):
         rewards_polyddpg = pd.Series(stats.episode_rewards).rolling(1, min_periods=1).mean()    
         cum_rwd = rewards_polyddpg
 
-        np.save('/Users/Riashat/Documents/PhD_Research/BASIC_ALGORITHMS/My_Implementations/Persistence_Length_Exploration/Results/'  + 'PolyRL_DDPG' + '.npy', cum_rwd)
+        np.save('/Users/Riashat/Documents/PhD_Research/BASIC_ALGORITHMS/My_Implementations/Persistence_Length_Exploration/Results/'  + 'PolyRL_DDPG_v2_Pendulum' + '.npy', cum_rwd)
 
         if GYM_MONITOR_EN:
             env.monitor.close()
