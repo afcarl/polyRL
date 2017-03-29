@@ -1,3 +1,11 @@
+""" 
+Implementation of DDPG - Deep Deterministic Policy Gradient
+Algorithm and hyperparameter details can be found here: 
+    http://arxiv.org/pdf/1509.02971v2.pdf
+The algorithm is tested on the Pendulum-v0 OpenAI gym task 
+and developed with tflearn + Tensorflow
+Author: Patrick Emami
+"""
 import tensorflow as tf
 import numpy as np
 import gym
@@ -46,7 +54,7 @@ RENDER_ENV = True
 # Use Gym Monitor
 GYM_MONITOR_EN = True
 # Gym environment
-ENV_NAME = 'Pendulum-v0'
+ENV_NAME = 'Swimmer-v1'
 
 MONITOR_DIR = './results/gym_ddpg'
 
@@ -549,6 +557,14 @@ def main(_):
         state_dim = env.observation_space.shape[0]
         action_dim = env.action_space.shape[0]
         action_bound = env.action_space.high
+
+        print "Action Space", env.action_space.shape
+
+        print "State Space", env.observation_space.shape
+
+        print X
+
+
         # Ensure action bound is symmetric
         assert (env.action_space.high == -env.action_space.low)
 
