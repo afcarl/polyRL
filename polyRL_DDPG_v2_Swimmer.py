@@ -1,10 +1,12 @@
 """ 
+
 Implementation of DDPG - Deep Deterministic Policy Gradient
 Algorithm and hyperparameter details can be found here: 
     http://arxiv.org/pdf/1509.02971v2.pdf
 The algorithm is tested on the Pendulum-v0 OpenAI gym task 
 and developed with tflearn + Tensorflow
 Author: Patrick Emami
+
 """
 import tensorflow as tf
 import numpy as np
@@ -73,42 +75,6 @@ MINIBATCH_SIZE = 64
 # ===========================
 #   Actor and Critic DNNs
 # ===========================
-
-
-# action_examples = np.array([ENV_NAME.action_space.sample() for x in range(10000)])
-
-action_examples = np.random.uniform(-2.0, 2.0,1)
-
-scaler_action = sklearn.preprocessing.StandardScaler()
-scaler_action.fit(action_examples)
-
-
-# featurizer_action = sklearn.pipeline.FeatureUnion([
-#         ("rbf1", RBFSampler(gamma=5.0, n_components=100)),
-#         ("rbf2", RBFSampler(gamma=2.0, n_components=100)),
-#         ("rbf3", RBFSampler(gamma=1.0, n_components=100)),
-#         ("rbf4", RBFSampler(gamma=0.5, n_components=100))
-#         ])
-# featurizer_action.fit(scaler_action.transform(action_examples))
-
-
-
-featurizer_action = sklearn.pipeline.FeatureUnion([
-        ("rbf1", RBFSampler(gamma=5.0, n_components=1)),
-        ("rbf2", RBFSampler(gamma=2.0, n_components=1))
-        ])
-featurizer_action.fit(scaler_action.transform(action_examples))
-
-
-
-def featurize_action(action):
-    # action = np.array([action])
-    scaled = scaler_action.transform([action])
-    featurized_action = featurizer_action.transform(scaled)
-    return featurized_action[0]
-
-
-
 
 
 class ActorNetwork(object):
@@ -310,10 +276,8 @@ def build_summaries():
 
 def LP_Exploration(env, action, state, actor, critic, length_polymer_chain, L_p, b_step_size, sigma, replay_buffer, ep_ave_max_q):
 
-
-    chain_actions = action
+    chain_actions = np.array([action])
     chain_states = state
-
 
     #draw theta from a Gaussian distribution
     theta_mean = np.arccos( np.exp(   np.true_divide(-b_step_size, L_p) )  )
@@ -342,40 +306,24 @@ def LP_Exploration(env, action, state, actor, critic, length_polymer_chain, L_p,
             operator = np.array([[np.cos(theta), np.sin(theta)], [- np.sin(theta),  np.cos(theta)]]).reshape(2,2)
 
 
-
-        phi_t = featurize_action(action)
+        phi_t = action
 
         phi_t_1 = phi_t + np.dot(operator, phi_t)
 
-        #revert back and multiply with inverse of operator to
-        #get the A_{t+1}
-        chosen_action = np.dot(inv(operator), phi_t_1)
+        chosen_action = np.array([phi_t_1])
 
-        chosen_action = phi_t_1
+        chain_actions = np.append(chain_actions, chosen_action, axis=0)
 
-
-        chain_actions = np.append(chain_actions, chosen_action)
 
         chosen_state, reward, terminal, _ = env.step(chosen_action)
  
         chain_states = np.append(chain_states, chosen_state)    
 
-
-        """
-        CHEAT HERE
-        """
-        ####CHEAT - need to convert feature(action) to action
-        chosen_action = chosen_action[0]
-
-
-        ####CHANGED THE REPLAY BUFFER HERE
-        # replay_buffer.add(np.reshape(state, (actor.s_dim,)), np.reshape(chosen_action, (actor.a_dim+1,)), reward, terminal, np.reshape(chosen_state, (actor.s_dim,)))
-
         replay_buffer.add(np.reshape(state, (actor.s_dim,)), np.reshape(chosen_action, (actor.a_dim,)), reward, terminal, np.reshape(chosen_state, (actor.s_dim,)))
+
 
         if terminal:
             chosen_state = env.reset()
-
 
 
         if replay_buffer.size() > MINIBATCH_SIZE:
@@ -476,9 +424,7 @@ def train(sess, env, actor, critic, length_polymer_chain, L_p, b_step_size, sigm
             """
             CHECK THIS
             """
-            a = actor.predict(np.reshape(s, (1, 3))) + (1. / (1. + i))
-
-
+            a = actor.predict(np.reshape(s, (1, actor.s_dim))) + (1. / (1. + i))
 
             s2, r, terminal, info = env.step(a)
 
@@ -562,12 +508,6 @@ def main(_):
 
         print "State Space", env.observation_space.shape
 
-        print X
-
-
-        # Ensure action bound is symmetric
-        assert (env.action_space.high == -env.action_space.low)
-
         actor = ActorNetwork(sess, state_dim, action_dim, action_bound, ACTOR_LEARNING_RATE, TAU)
 
         critic = CriticNetwork(sess, state_dim, action_dim, CRITIC_LEARNING_RATE, TAU, actor.get_num_trainable_vars())
@@ -588,13 +528,15 @@ def main(_):
     
         stats = train(sess, env, actor, critic, length_polymer_chain, L_p, b_step_size, sigma)
 
-        rewards_polyddpg = pd.Series(stats.episode_rewards).rolling(1, min_periods=1).mean()    
-        cum_rwd = rewards_polyddpg
 
-        np.save('/Users/Riashat/Documents/PhD_Research/BASIC_ALGORITHMS/My_Implementations/Persistence_Length_Exploration/Results/'  + 'PolyRL_DDPG_v2_Pendulum' + '.npy', cum_rwd)
+        rewards_polyddpg = pd.Series(stats.episode_rewards).rolling(1, min_periods=1).mean()  
+        cum_rwd = rewards_polyddpg
+        np.save('/Users/Riashat/Documents/PhD_Research/BASIC_ALGORITHMS/My_Implementations/Persistence_Length_Exploration/Results/'  + 'PolyRL_DDPG_v2_Swimmer' + '.npy', cum_rwd)
+
 
         if GYM_MONITOR_EN:
             env.monitor.close()
+
 
 if __name__ == '__main__':
     tf.app.run()
