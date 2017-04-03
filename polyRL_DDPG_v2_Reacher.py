@@ -56,7 +56,7 @@ RENDER_ENV = True
 # Use Gym Monitor
 GYM_MONITOR_EN = True
 # Gym environment
-ENV_NAME = 'Swimmer-v1'
+ENV_NAME = 'Reacher-v1'
 
 MONITOR_DIR = './results/gym_ddpg'
 
@@ -528,7 +528,7 @@ def main(_):
 
         rewards_polyddpg = pd.Series(stats.episode_rewards).rolling(1, min_periods=1).mean()  
         cum_rwd = rewards_polyddpg
-        np.save('/Users/Riashat/Documents/PhD_Research/BASIC_ALGORITHMS/My_Implementations/Persistence_Length_Exploration/Results/'  + 'PolyRL_DDPG_v2_Swimmer' + '.npy', cum_rwd)
+        np.save('/Users/Riashat/Documents/PhD_Research/BASIC_ALGORITHMS/My_Implementations/Persistence_Length_Exploration/Results/'  + 'PolyRL_DDPG_v2_Reacher' + '.npy', cum_rwd)
 
 
         if GYM_MONITOR_EN:

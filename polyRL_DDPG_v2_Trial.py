@@ -56,7 +56,7 @@ RENDER_ENV = True
 # Use Gym Monitor
 GYM_MONITOR_EN = True
 # Gym environment
-ENV_NAME = 'Swimmer-v1'
+ENV_NAME = 'Humanoid-v1'
 
 MONITOR_DIR = './results/gym_ddpg'
 
@@ -254,6 +254,7 @@ class CriticNetwork(object):
 #   Tensorflow Summary Ops
 # ===========================
 
+
 def build_summaries():
     episode_reward = tf.Variable(0.)
     tf.summary.scalar("Reward", episode_reward)
@@ -340,6 +341,7 @@ def LP_Exploration(env, action, state, actor, critic, length_polymer_chain, L_p,
                     y_i.append(r_batch[k] + GAMMA * target_q[k])
 
 
+            #### PROBEM : Probel with A as feature vector is here
             predicted_q_value, _ = critic.train(s_batch, a_batch, np.reshape(y_i, (MINIBATCH_SIZE, 1)))
 
             ep_ave_max_q += np.amax(predicted_q_value)
@@ -369,6 +371,7 @@ def LP_Exploration(env, action, state, actor, critic, length_polymer_chain, L_p,
 # ===========================
 #   Agent Training
 # ===========================
+
 
 def train(sess, env, actor, critic, length_polymer_chain, L_p, b_step_size, sigma):
 
@@ -504,6 +507,8 @@ def main(_):
         print "Action Space", env.action_space.shape
 
         print "State Space", env.observation_space.shape
+
+        print X
 
         actor = ActorNetwork(sess, state_dim, action_dim, action_bound, ACTOR_LEARNING_RATE, TAU)
 
