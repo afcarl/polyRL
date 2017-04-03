@@ -1,13 +1,12 @@
 """ 
-
 Implementation of DDPG - Deep Deterministic Policy Gradient
 Algorithm and hyperparameter details can be found here: 
     http://arxiv.org/pdf/1509.02971v2.pdf
 The algorithm is tested on the Pendulum-v0 OpenAI gym task 
 and developed with tflearn + Tensorflow
 Author: Patrick Emami
-
 """
+
 import tensorflow as tf
 import numpy as np
 import gym
@@ -75,8 +74,6 @@ MINIBATCH_SIZE = 64
 # ===========================
 #   Actor and Critic DNNs
 # ===========================
-
-
 class ActorNetwork(object):
     """
     Input to the network is the state, output is the action
@@ -278,9 +275,7 @@ def LP_Exploration(env, action, state, actor, critic, length_polymer_chain, L_p,
     chain_actions = np.array([action])
     chain_states = state
 
-    #draw theta from a Gaussian distribution
-    theta_mean = np.arccos( np.exp(   np.true_divide(-b_step_size, L_p) )  )
-    theta = np.random.normal(theta_mean, sigma, 1)
+    theta = np.random.uniform(-np.pi, np.pi, 1)
 
     action_trajectory_chain= 0
     state_trajectory_chain = 0
@@ -294,15 +289,17 @@ def LP_Exploration(env, action, state, actor, critic, length_polymer_chain, L_p,
 
     H = next_action - action
 
-
     # Initialize replay memory
     replay_buffer = ReplayBuffer(BUFFER_SIZE, RANDOM_SEED)
 
-    operator = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta),np.cos(theta)]]).reshape(2,2)
+    # operator = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta),np.cos(theta)]]).reshape(2,2)
 
 
     #building the polymer chain
     while True:
+
+        theta_mean = np.arccos( np.exp(   np.true_divide(-b_step_size, L_p) )  )
+        theta = np.random.normal(theta_mean, sigma, 1)
 
         coin_flip = np.random.randint(2, size=1)
 
@@ -312,13 +309,12 @@ def LP_Exploration(env, action, state, actor, critic, length_polymer_chain, L_p,
             operator = np.array([[np.cos(theta), np.sin(theta)], [- np.sin(theta),  np.cos(theta)]]).reshape(2,2)
 
 
-        phi_t = action
+        phi_t = next_action
 
         phi_t_1 = phi_t + np.dot(operator, H)
 
         #H update for next A_{t_1}, and A_{t}
         H = phi_t_1 - phi_t
-
 
         chosen_action = np.array([phi_t_1])
 
@@ -340,8 +336,6 @@ def LP_Exploration(env, action, state, actor, critic, length_polymer_chain, L_p,
             s_batch, a_batch, r_batch, t_batch, s2_batch = replay_buffer.sample_batch(MINIBATCH_SIZE)
 
             target_q = critic.predict_target(s2_batch, actor.predict_target(s2_batch))
-
-
 
             y_i = []
             for k in xrange(MINIBATCH_SIZE):
@@ -431,10 +425,10 @@ def train(sess, env, actor, critic, length_polymer_chain, L_p, b_step_size, sigm
             lp_exp_mean = np.arccos( np.exp(   np.true_divide(-b_step_size, L_p) )  )
             lp_noise= np.random.normal(lp_exp_mean, 0.05, 1)
 
-            a = actor.predict(np.reshape(s, (1, actor.s_dim))) + lp_noise
+            a = actor.predict(np.reshape(s, (1, actor.s_dim))) + (lp_noise / (1. + i) )
+
 
             s2, r, terminal, info = env.step(a)
-
 
             replay_buffer.add(np.reshape(s, (actor.s_dim,)), np.reshape(a, (actor.a_dim,)), r, terminal, np.reshape(s2, (actor.s_dim,)))
 

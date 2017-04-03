@@ -56,7 +56,7 @@ RENDER_ENV = True
 # Use Gym Monitor
 GYM_MONITOR_EN = True
 # Gym environment
-ENV_NAME = 'Swimmer-v1'
+ENV_NAME = 'Hopper-v1'
 
 MONITOR_DIR = './results/gym_ddpg'
 
@@ -278,7 +278,8 @@ def LP_Exploration(env, action, state, actor, critic, length_polymer_chain, L_p,
     chain_actions = np.array([action])
     chain_states = state
 
-    theta = np.random.uniform(-np.pi, np.pi, 1)
+    phi_angle = np.random.uniform(0, 2*np.pi,1)
+    theta = np.random.uniform(-np.pi/2, np.pi/2, 1)
 
     action_trajectory_chain= 0
     state_trajectory_chain = 0
@@ -286,38 +287,34 @@ def LP_Exploration(env, action, state, actor, critic, length_polymer_chain, L_p,
     end_traj_action = 0
     end_traj_state = 0
 
-    init_angle = np.array([b_step_size*np.cos(theta), b_step_size*np.sin(theta)]).reshape(2)
+    init_angle = np.array([ b_step_size*np.cos(theta)*np.sin(phi_angle), b_step_size*np.sin(theta)*np.sin(phi_angle), b_step_size*np.cos(phi_angle)    ]).reshape(3)
 
     next_action = action + init_angle
-
-    H = next_action - action
 
     # Initialize replay memory
     replay_buffer = ReplayBuffer(BUFFER_SIZE, RANDOM_SEED)
 
-    # operator = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta),np.cos(theta)]]).reshape(2,2)
 
 
     #building the polymer chain
     while True:
 
+        #draw theta from a Gaussian distribution
         theta_mean = np.arccos( np.exp(   np.true_divide(-b_step_size, L_p) )  )
-        theta = np.random.normal(theta_mean, sigma, 1)
+        theta = np.random.normal(theta_mean, sigma, 1)        
 
         coin_flip = np.random.randint(2, size=1)
 
         if coin_flip == 0:
-            operator = np.array([[np.cos(theta), - np.sin(theta)], [np.sin(theta),  np.cos(theta)]]).reshape(2,2)
+            theta = theta
         elif coin_flip == 1:
-            operator = np.array([[np.cos(theta), np.sin(theta)], [- np.sin(theta),  np.cos(theta)]]).reshape(2,2)
+            theta = -theta
 
+        phi_angle = np.random.uniform(0, 2*np.pi,1)
 
         phi_t = next_action
 
-        phi_t_1 = phi_t + np.dot(operator, H)
-
-        #H update for next A_{t_1}, and A_{t}
-        H = phi_t_1 - phi_t
+        phi_t_1 = np.array([  phi_t[0]+b_step_size*np.cos(theta)*np.sin(phi_angle), phi_t[1]+b_step_size*np.sin(theta)*np.sin(phi_angle), phi_t[2]+b_step_size*np.cos(phi_angle)   ]).reshape(3)
 
         chosen_action = np.array([phi_t_1])
 
@@ -434,7 +431,6 @@ def train(sess, env, actor, critic, length_polymer_chain, L_p, b_step_size, sigm
 
             s2, r, terminal, info = env.step(a)
 
-
             replay_buffer.add(np.reshape(s, (actor.s_dim,)), np.reshape(a, (actor.a_dim,)), r, terminal, np.reshape(s2, (actor.s_dim,)))
 
             # Keep adding experience to the memory until
@@ -515,6 +511,7 @@ def main(_):
 
         print "State Space", env.observation_space.shape
 
+
         actor = ActorNetwork(sess, state_dim, action_dim, action_bound, ACTOR_LEARNING_RATE, TAU)
 
         critic = CriticNetwork(sess, state_dim, action_dim, CRITIC_LEARNING_RATE, TAU, actor.get_num_trainable_vars())
@@ -538,7 +535,7 @@ def main(_):
 
         rewards_polyddpg = pd.Series(stats.episode_rewards).rolling(1, min_periods=1).mean()  
         cum_rwd = rewards_polyddpg
-        np.save('/Users/Riashat/Documents/PhD_Research/BASIC_ALGORITHMS/My_Implementations/Persistence_Length_Exploration/Results/'  + 'PolyRL_DDPG_v2_Swimmer' + '.npy', cum_rwd)
+        np.save('/Users/Riashat/Documents/PhD_Research/BASIC_ALGORITHMS/My_Implementations/Persistence_Length_Exploration/Results/'  + 'PolyRL_DDPG_v2_Hopper' + '.npy', cum_rwd)
 
 
         if GYM_MONITOR_EN:
