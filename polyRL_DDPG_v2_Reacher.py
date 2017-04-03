@@ -288,6 +288,13 @@ def LP_Exploration(env, action, state, actor, critic, length_polymer_chain, L_p,
     end_traj_action = 0
     end_traj_state = 0
 
+    init_angle = np.array([np.cos(theta), np.sin(theta)]).reshape(2)
+
+    next_action = action + init_angle
+
+    H = next_action - action
+
+
     # Initialize replay memory
     replay_buffer = ReplayBuffer(BUFFER_SIZE, RANDOM_SEED)
 
@@ -307,7 +314,11 @@ def LP_Exploration(env, action, state, actor, critic, length_polymer_chain, L_p,
 
         phi_t = action
 
-        phi_t_1 = phi_t + np.dot(operator, phi_t)
+        phi_t_1 = phi_t + np.dot(operator, H)
+
+        #H update for next A_{t_1}, and A_{t}
+        H = phi_t_1 - phi_t
+
 
         chosen_action = np.array([phi_t_1])
 
@@ -401,6 +412,7 @@ def train(sess, env, actor, critic, length_polymer_chain, L_p, b_step_size, sigm
         ep_reward = 0
         ep_ave_max_q = 0
 
+
         """
         LP Exploration 
         """
@@ -415,15 +427,14 @@ def train(sess, env, actor, critic, length_polymer_chain, L_p, b_step_size, sigm
             if RENDER_ENV:
                 env.render()
 
-            # Added exploration noise
-            ### this is the usual exploration as done in DDPG
-            ### we still do this? Or choose next a based on L_p exploration?
-            """
-            CHECK THIS
-            """
-            a = actor.predict(np.reshape(s, (1, actor.s_dim))) + (1. / (1. + i))
+            # Add LP Exploration (LP Noise) in DDPG 
+            lp_exp_mean = np.arccos( np.exp(   np.true_divide(-b_step_size, L_p) )  )
+            lp_noise= np.random.normal(lp_exp_mean, 0.05, 1)
+
+            a = actor.predict(np.reshape(s, (1, actor.s_dim))) + lp_noise
 
             s2, r, terminal, info = env.step(a)
+
 
             replay_buffer.add(np.reshape(s, (actor.s_dim,)), np.reshape(a, (actor.a_dim,)), r, terminal, np.reshape(s2, (actor.s_dim,)))
 
