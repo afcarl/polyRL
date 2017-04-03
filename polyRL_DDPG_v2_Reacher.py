@@ -35,10 +35,10 @@ from sklearn.kernel_approximation import RBFSampler
 # Max training steps
 # MAX_EPISODES = 50000
 
-MAX_EPISODES = 10000
+MAX_EPISODES = 50000
 
 # Max episode length
-MAX_EP_STEPS = 10000
+MAX_EP_STEPS = 20000
 # Base learning rate for the Actor network
 ACTOR_LEARNING_RATE = 0.0001
 # Base learning rate for the Critic Network
@@ -288,7 +288,7 @@ def LP_Exploration(env, action, state, actor, critic, length_polymer_chain, L_p,
     end_traj_action = 0
     end_traj_state = 0
 
-    init_angle = np.array([np.cos(theta), np.sin(theta)]).reshape(2)
+    init_angle = np.array([b_step_size*np.cos(theta), b_step_size*np.sin(theta)]).reshape(2)
 
     next_action = action + init_angle
 
@@ -521,10 +521,10 @@ def main(_):
         critic = CriticNetwork(sess, state_dim, action_dim, CRITIC_LEARNING_RATE, TAU, actor.get_num_trainable_vars())
 
 
-        length_polymer_chain = 200
-        L_p = 2000
+        length_polymer_chain = 1000
+        L_p = 200
         b_step_size = 1
-        sigma = 0.5
+        sigma = 0.1
 
         if GYM_MONITOR_EN:
             if not RENDER_ENV:
