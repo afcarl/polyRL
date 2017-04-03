@@ -425,7 +425,7 @@ def train(sess, env, actor, critic, length_polymer_chain, L_p, b_step_size, sigm
 
             # Add LP Exploration (LP Noise) in DDPG 
             lp_exp_mean = np.arccos( np.exp(   np.true_divide(-b_step_size, L_p) )  )
-            lp_noise= np.random.normal(lp_exp_mean, 0.05, 1)
+            lp_noise= np.random.normal(lp_exp_mean, 0.9, 1)
 
             a = actor.predict(np.reshape(s, (1, actor.s_dim))) + (lp_noise / (1. + i) )
 
