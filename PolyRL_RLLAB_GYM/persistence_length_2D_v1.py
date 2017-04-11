@@ -106,10 +106,10 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
         b_step_size=0.5, 
         sigma=0.05, 
         max_exploratory_steps = 10, 
-        epoch_length=100,
-        length_polymer_chain=1000,
+        epoch_length=10000,
+        length_polymer_chain=100000,
         batch_size=32,
-        max_path_length=250,
+        max_path_length=10000,
         qf_weight_decay=0.,
         qf_update_method='adam',
         qf_learning_rate=1e-3,
@@ -118,12 +118,12 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
         policy_learning_rate=1e-3, 
         soft_target=True,
         soft_target_tau=0.001,
-        min_pool_size=100,
+        min_pool_size=10000,
         replay_pool_size=1000000,
         discount=0.99,
         n_updates_per_sample=1, 
         include_horizon_terminal_transitions=False, 
-        scale_reward = 1.0):
+        scale_reward = 100.0):
 
         self.env = env
         assert isinstance(self.env.action_space, Box)
@@ -213,7 +213,6 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
         itr = 0
         terminal = False
 
-
         """
         RANDOM H_X AND H SHOULD NOT BE SAME ALL EPISODE
         """
@@ -229,33 +228,36 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
 
         for itr in range(self.max_exploratory_steps):
 
-            print ("LP Exploratory Episode", itr)
+            print ("LP Exploration Episode", itr)
+
+            print ("Replay Buffer Sample Size", pool.size)
+
+            #should start from a new random action at every LP Exploration phase?
+
+            self.initial_action = self.env.action_space.sample()
+
+            print ("Initial Action of LP Exploration", self.initial_action)
+
+            h_x = 0.001
+            h_y = np.sqrt(np.absolute(self.b_step_size**2 - h_x**2))
+            H = np.array([h_x,  h_y])
+
+            next_action = self.initial_action + H
 
             for epoch_itr in pyprind.prog_bar(range(self.epoch_length)):
 
-                if terminal: 
-                    state = self.env.reset()
-                    sample_policy.reset()
-                    path_length = 0
-                    path_return = 0
+                # if terminal: 
 
-                """
-                LP Exploration Algorithm here
-                """
+                #     print ("USING THIS AT ALL?")
+                #     state = self.env.reset()
+                #     sample_policy.reset()
 
-                """
-                CHECK TRUE DIVIDE NUMPY
-                """
+                #     path_length = 0
+                #     path_return = 0
+
+
                 theta_mean = np.arccos( np.exp(   np.true_divide(-self.b_step_size, self.L_p) )  )
                 theta = np.random.normal(theta_mean, self.sigma, 1)   
-
-                # print ("THeta Mean", theta_mean)
-                # print ("Theta", theta)
-
-                """
-                MONITOR THETA
-                """
-
 
                 coin_flip = np.random.randint(2, size=1)
 
@@ -267,16 +269,24 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
 
 
                 phi_t = next_action
-
-                """
-                NOT DOT PRODUCT
-                """
                 phi_t_1 = phi_t + np.dot(operator, H)
 
                 chosen_action = np.array([phi_t_1])
                 chain_actions = np.append(chain_actions, chosen_action, axis=0)
 
+
+                """
+                Obtained rewards in Swimmer are scaled by 100 
+                - also make sure same scaling is done in DDPG without polyRL algo
+                """
                 chosen_state, reward, terminal, _ = self.env.step(chosen_action)
+
+                if terminal == True:
+                    print ("Reward at Invalid State", reward)
+                    print ("Number of Steps before invalid state", epoch_itr)
+                    break
+
+
                 chain_states = np.append(chain_states, chosen_state)    
 
                 action = chosen_action
@@ -295,13 +305,32 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
 
 
                 if not terminal and path_length >= self.max_path_length:
+
                     terminal = True
+
+                    print ("LP Exploration terminated")
+
+                    path_length = 0
+                    path_return = 0
+                    state = self.env.reset()
+                    sample_policy.reset()
+
+                    print ("Reward at terminal state", reward)
+                    print ("Step Number at Terminal", epoch_itr)
+
                     # only include the terminal transition in this case if the flag was set
                     if self.include_horizon_terminal_transitions:
-                        pool.add_sample(state, action, reward * self.scale_reward, terminal)
+
+                        #### adding large negative reward to the terminal state reward??? Check this
+                        pool.add_sample(state, action, reward * self.scale_reward*100, terminal)
+                
+                    break
+
                 else:
+
                     pool.add_sample(state, action, reward * self.scale_reward, terminal)
         
+
                 if pool.size >= self.min_pool_size:
                     for update_itr in range(self.n_updates_per_sample):
                         # Train policy
