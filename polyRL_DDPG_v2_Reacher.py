@@ -34,14 +34,16 @@ from sklearn.kernel_approximation import RBFSampler
 # Max training steps
 # MAX_EPISODES = 50000
 
-MAX_EPISODES = 50000
+MAX_EPISODES = 10000
 
 # Max episode length
-MAX_EP_STEPS = 20000
+MAX_EP_STEPS = 10000
+
 # Base learning rate for the Actor network
 ACTOR_LEARNING_RATE = 0.0001
 # Base learning rate for the Critic Network
 CRITIC_LEARNING_RATE = 0.001
+
 # Discount factor
 GAMMA = 0.99
 # Soft target update param
