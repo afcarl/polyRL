@@ -10,10 +10,10 @@ from rllab.envs.mujoco.swimmer_env import SwimmerEnv
 
 env = normalize(SwimmerEnv())
 
-space = env.action_space
+print ("Action High", env.action_space.high)
+print ("Action Low", env.action_space.low)
+print("Observation Space", env.observation_space)
 
-# print ("Sample Action High", env.action_space.high)
-# print ("Sample Action Low", env.action_space.low)
 
 
 def run_task(*_):
@@ -51,6 +51,9 @@ def run_task(*_):
     Defining the Q network
     """
     qf = ContinuousMLPQFunction(env_spec=env.spec)
+
+
+    w = qf.get_param_values(regularizable=True)
 
     """
     Persistence Length Exploration

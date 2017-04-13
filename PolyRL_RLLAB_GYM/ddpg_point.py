@@ -5,9 +5,18 @@ from rllab.exploration_strategies.ou_strategy import OUStrategy
 from rllab.policies.deterministic_mlp_policy import DeterministicMLPPolicy
 from rllab.q_functions.continuous_mlp_q_function import ContinuousMLPQFunction
 
-from rllab.envs.mujoco.swimmer_env import SwimmerEnv
 
-env = normalize(SwimmerEnv())
+from rllab.envs.mujoco.point_env import PointEnv
+
+env = normalize(PointEnv())
+
+
+
+print ("Action High", env.action_space.high)
+print ("Action Low", env.action_space.low)
+print("Observation Space", env.observation_space)
+
+print ("Action Dimension", env.action_space.shape)
 
 
 def run_task(*_):
@@ -16,7 +25,7 @@ def run_task(*_):
     """
     DPG on Swimmer environment
     """
-    env = normalize(SwimmerEnv())
+    env = normalize(PointEnv())
 
     """
     Initialise the policy as a neural network policy
