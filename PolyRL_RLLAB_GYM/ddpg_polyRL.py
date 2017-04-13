@@ -98,12 +98,12 @@ class DDPG(RLAlgorithm):
             es,
             lp,
             batch_size=32,
-            n_epochs=100,
-            epoch_length=1500,
+            n_epochs=10000,
+            epoch_length=1000,
             min_pool_size=10000,
             replay_pool_size=1000000,
             discount=0.99,
-            max_path_length=250,
+            max_path_length=500,
             qf_weight_decay=0.,
             qf_update_method='adam',
             qf_learning_rate=1e-3,
@@ -114,7 +114,7 @@ class DDPG(RLAlgorithm):
             soft_target=True,
             soft_target_tau=0.001,
             n_updates_per_sample=1,
-            scale_reward=1.0,
+            scale_reward=100.0,
             include_horizon_terminal_transitions=False,
             plot=False,
             pause_for_plot=False):
@@ -246,8 +246,6 @@ class DDPG(RLAlgorithm):
                     # last state and observation will be ignored and not added
                     # to the replay pool
                     observation = self.env.reset()
-
-                    print ("Intiail State", observation)
 
                     self.es.reset()
                     sample_policy.reset()
