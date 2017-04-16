@@ -106,11 +106,11 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
         env, 
         qf, 
         policy,
-        L_p=1, 
-        b_step_size=0.005, 
+        L_p=0.08, 
+        b_step_size=0.0004, 
         sigma = 0.1, 
-        max_exploratory_steps = 100, 
-        epoch_length=1000,
+        max_exploratory_steps = 20, 
+        epoch_length=2000,
         length_polymer_chain=100000,
         batch_size=32,
         max_path_length=200000,
@@ -222,12 +222,9 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
         all_H = np.array([H])
         all_theta = np.array([])
 
+
         sample_policy = pickle.loads(pickle.dumps(self.policy))
-
         self.initial_action = self.env.action_space.sample()
-
-        # print ("Starting Initial Action", self.initial_action)
-
         last_action_chosen = self.initial_action
 
 
@@ -261,26 +258,11 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
 
             H = np.array([h_x,  h_y])
 
-
-
             next_action = last_action_chosen + H
-
-
 
             for epoch_itr in pyprind.prog_bar(range(self.epoch_length)):
 
-                # if terminal: 
-
-                #     print ("USING THIS AT ALL?")
-                #     state = self.env.reset()
-                #     sample_policy.reset()
-
-                #     path_length = 0
-                #     path_return = 0
-
-
                 theta_mean = np.arccos( np.exp(   np.true_divide(-self.b_step_size, self.L_p) )  )
-
 
                 theta = np.random.normal(theta_mean, self.sigma, 1)   
                 all_theta = np.append(all_theta, theta)
@@ -297,10 +279,6 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
                 phi_t_1 = phi_t + np.dot(operator, H)
 
                 chosen_action = np.array([phi_t_1])
-
-                # print ("Current Action", phi_t)
-                # print ("Next Action", chosen_action)
-
                 chain_actions = np.append(chain_actions, chosen_action, axis=0)
 
 
@@ -309,8 +287,6 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
                 - also make sure same scaling is done in DDPG without polyRL algo
                 """
                 chosen_state, reward, terminal, _ = self.env.step(chosen_action)
-                # print("Reward for action", reward)
-
 
                 ### if an invalid state is reached
                 if terminal == True:
@@ -351,6 +327,7 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
                     path_return = 0
                     state = self.env.reset()
                     sample_policy.reset()
+
                     print ("Step Number at Terminal", epoch_itr)
 
                     # only include the terminal transition in this case if the flag was set
@@ -384,16 +361,16 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
 
 
 
-        # df_a = pd.DataFrame(action_trajectory_chain, columns=['Dim 1', 'Dim 2'])
-        # df_a.to_csv("exploratory_action.csv")
+        df_a = pd.DataFrame(action_trajectory_chain, columns=['Dim 1', 'Dim 2'])
+        df_a.to_csv("/Users/Riashat/Documents/PhD_Research/RLLAB_Gym/rllab/examples/Action_Chains/exploratory_action_v1.csv")
 
-        # df_s = pd.DataFrame(state_trajectory_chain, columns=['Dim 1', 'Dim 2', 'Dim 3', 'Dim 4', 'Dim 5', 'Dim 6', 'Dim 7', 'Dim 8', 'Dim 9', 'Dim 10', 'Dim 11', 'Dim 12', 'Dim 13'])
-        # df_s.to_csv("exploratory_states.csv")
+        df_s = pd.DataFrame(state_trajectory_chain, columns=['Dim 1', 'Dim 2', 'Dim 3', 'Dim 4', 'Dim 5', 'Dim 6', 'Dim 7', 'Dim 8', 'Dim 9', 'Dim 10', 'Dim 11', 'Dim 12', 'Dim 13'])
+        df_s.to_csv("/Users/Riashat/Documents/PhD_Research/RLLAB_Gym/rllab/examples/Action_Chains/exploratory_states_v1.csv")
 
-        # df = pd.DataFrame({'Theta Values': all_theta,
-        #            'H(dim 1)': all_H[1:, 0],
-        #            'H(dim 2)': all_H[1:, 1]})
-        # df.to_csv("All Exploration Params.csv")
+        df = pd.DataFrame({'Theta Values': all_theta,
+                   'H(dim 1)': all_H[1:, 0],
+                   'H(dim 2)': all_H[1:, 1]})
+        df.to_csv("/Users/Riashat/Documents/PhD_Research/RLLAB_Gym/rllab/examples/Action_Chains/All Exploration Params_v1.csv")
 
 
         return updated_q_network, action_trajectory_chain, state_trajectory_chain, end_trajectory_action, end_trajectory_state
@@ -463,8 +440,6 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
             target_policy=target_policy,
         )
 
-
-
     def do_training(self, itr, batch):
 
         obs, actions, rewards, next_obs, terminals = ext.extract(
@@ -498,13 +473,6 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
         target_qf.set_param_values(
             target_qf.get_param_values() * (1.0 - self.soft_target_tau) +
             self.qf.get_param_values() * self.soft_target_tau)
-
-
-        """
-        Check this again - whether Q network is actually updated or not
-        """
-
-
 
         self.qf_loss_averages.append(qf_loss)
         self.policy_surr_averages.append(policy_surr)

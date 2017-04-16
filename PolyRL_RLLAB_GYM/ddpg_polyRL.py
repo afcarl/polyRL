@@ -81,10 +81,6 @@ class SimpleReplayPool(object):
         return self._size
 
 
-"""
-Main algorithm here
-"""
-
 class DDPG(RLAlgorithm):
     """
     Deep Deterministic Policy Gradient.
@@ -99,7 +95,7 @@ class DDPG(RLAlgorithm):
             lp,
             batch_size=32,
             n_epochs=10000,
-            epoch_length=1000,
+            epoch_length=2000,
             min_pool_size=10000,
             replay_pool_size=1000000,
             discount=0.99,
@@ -198,11 +194,7 @@ class DDPG(RLAlgorithm):
 
     @overrides
     def train(self):
-        # This seems like a rather sequential method
 
-        """
-        Replay pool of states and actions
-        """
         pool = SimpleReplayPool(
             max_pool_size=self.replay_pool_size,
             observation_dim=self.env.observation_space.flat_dim,
@@ -216,8 +208,6 @@ class DDPG(RLAlgorithm):
         path_return = 0
         terminal = False
         observation = self.env.reset()
-
-        # print("Initial State", observation)
 
         sample_policy = pickle.loads(pickle.dumps(self.policy))
 
@@ -253,9 +243,7 @@ class DDPG(RLAlgorithm):
                     path_length = 0
                     path_return = 0
 
-                """
-                pick action according to the exploration strategy? - originally OUStrategy here
-                """
+
                 action = self.es.get_action(itr, observation, policy=sample_policy)  # qf=qf)
 
                 #next states, and reward based on the chosen action
