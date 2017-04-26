@@ -110,10 +110,10 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
         b_step_size=0.0004, 
         sigma = 0.1, 
         max_exploratory_steps = 20, 
-        epoch_length=2000,
-        length_polymer_chain=100000,
+        epoch_length=1000,
+        length_polymer_chain=20000,
         batch_size=32,
-        max_path_length=200000,
+        max_path_length=1000,
         qf_weight_decay=0.,
         qf_update_method='adam',
         qf_learning_rate=1e-3,
@@ -344,7 +344,7 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
                     for update_itr in range(self.n_updates_per_sample):
                         # Train policy
                         batch = pool.random_batch(self.batch_size)
-                        updated_q_network = self.do_training(itr, batch)
+                        updated_q_network, updated_policy_network = self.do_training(itr, batch)
                         sample_policy.set_param_values(self.policy.get_param_values())
 
                 itr += 1
@@ -373,7 +373,7 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
         df.to_csv("/Users/Riashat/Documents/PhD_Research/RLLAB_Gym/rllab/examples/Action_Chains/All Exploration Params_v1.csv")
 
 
-        return updated_q_network, action_trajectory_chain, state_trajectory_chain, end_trajectory_action, end_trajectory_state
+        return updated_q_network, updated_policy_network, action_trajectory_chain, state_trajectory_chain, end_trajectory_action, end_trajectory_state
 
 
     def init_opt(self):
@@ -480,8 +480,9 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
         self.y_averages.append(ys)
 
         q_network_exploratory_update = self.qf
+        policy_network_exploratory_update = self.policy
 
-        return q_network_exploratory_update
+        return q_network_exploratory_update, policy_network_exploratory_update
 
 
 

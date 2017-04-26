@@ -5,31 +5,18 @@ from rllab.exploration_strategies.ou_strategy import OUStrategy
 from rllab.policies.deterministic_mlp_policy import DeterministicMLPPolicy
 from rllab.q_functions.continuous_mlp_q_function import ContinuousMLPQFunction
 
+from rllab.envs.mujoco.walker2d_env import Walker2DEnv
 
-from rllab.envs.mujoco.half_cheetah_env import HalfCheetahEnv
-
-env = normalize(HalfCheetahEnv())
-
-
-
+env = normalize(Walker2DEnv())
 
 
 def run_task(*_):
 
 
     """
-    DPG on Hopper environment
+    DPG on Walker environment
     """
-    env = normalize(HalfCheetahEnv())
-
-    """
-    Initialise the policy as a neural network policy
-    """
-    # policy = DeterministicMLPPolicy(
-    #     env_spec=env.spec,
-    #     # The neural network policy should have two hidden layers, each with 32 hidden units.
-    #     hidden_sizes=(32, 32)
-    # )
+    env = normalize(Walker2DEnv())
 
     policy = DeterministicMLPPolicy(
         env_spec=env.spec,
@@ -73,7 +60,7 @@ def run_task(*_):
         max_path_length=1000,
         epoch_length=1000,
         min_pool_size=10000,
-        n_epochs=20000,
+        n_epochs=10000,
         discount=0.99,
         scale_reward=0.01,
         qf_learning_rate=10e-3,

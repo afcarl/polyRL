@@ -18,9 +18,10 @@ import numpy as np
 import pyprind
 import lasagne
 import rllab.misc.logger as logger
-
 import random 
 import pandas as pd 
+from random import randint
+from rllab.pool.simple_pool import SimpleReplayPool
 
 
 def parse_update_method(update_method, **kwargs):
@@ -30,66 +31,6 @@ def parse_update_method(update_method, **kwargs):
         return partial(lasagne.updates.sgd, **ext.compact(kwargs))
     else:
         raise NotImplementedError
-
-
-
-class SimpleReplayPool(object):
-    def __init__(
-            self, max_pool_size, observation_dim, action_dim):
-        self._observation_dim = observation_dim
-        self._action_dim = action_dim
-        self._max_pool_size = max_pool_size
-        self._observations = np.zeros(
-            (max_pool_size, observation_dim),
-        )
-        self._actions = np.zeros(
-            (max_pool_size, action_dim),
-        )
-        self._rewards = np.zeros(max_pool_size)
-        self._terminals = np.zeros(max_pool_size, dtype='uint8')
-        self._bottom = 0
-        self._top = 0
-        self._size = 0
-
-    def add_sample(self, observation, action, reward, terminal):
-        self._observations[self._top] = observation
-        self._actions[self._top] = action
-        self._rewards[self._top] = reward
-        self._terminals[self._top] = terminal
-        self._top = (self._top + 1) % self._max_pool_size
-        if self._size >= self._max_pool_size:
-            self._bottom = (self._bottom + 1) % self._max_pool_size
-        else:
-            self._size += 1
-
-    def random_batch(self, batch_size):
-        assert self._size > batch_size
-        indices = np.zeros(batch_size, dtype='uint64')
-        transition_indices = np.zeros(batch_size, dtype='uint64')
-        count = 0
-        while count < batch_size:
-            index = np.random.randint(self._bottom, self._bottom + self._size) % self._max_pool_size
-            # make sure that the transition is valid: if we are at the end of the pool, we need to discard
-            # this sample
-            if index == self._size - 1 and self._size <= self._max_pool_size:
-                continue
-            # if self._terminals[index]:
-            #     continue
-            transition_index = (index + 1) % self._max_pool_size
-            indices[count] = index
-            transition_indices[count] = transition_index
-            count += 1
-        return dict(
-            observations=self._observations[indices],
-            actions=self._actions[indices],
-            rewards=self._rewards[indices],
-            terminals=self._terminals[indices],
-            next_observations=self._observations[transition_indices]
-        )
-
-    @property
-    def size(self):
-        return self._size
 
 
 class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
@@ -110,24 +51,24 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
         b_step_size=0.0004, 
         sigma = 0.1, 
         max_exploratory_steps = 20, 
-        epoch_length=2000,
-        length_polymer_chain=100000,
-        batch_size=32,
-        max_path_length=200000,
-        qf_weight_decay=0.,
+        epoch_length=1000,
+        length_polymer_chain=20000,
+        batch_size=64,
+        max_path_length=1000,
+        qf_weight_decay=10e-2,
         qf_update_method='adam',
-        qf_learning_rate=1e-3,
+        qf_learning_rate=10e-3,
         policy_weight_decay=0,
         policy_update_method='adam',
-        policy_learning_rate=1e-3, 
+        policy_learning_rate=10e-4, 
         soft_target=True,
         soft_target_tau=0.001,
         min_pool_size=10000,
         replay_pool_size=1000000,
-        discount=0.99,
+        discount=0.999,
         n_updates_per_sample=1, 
         include_horizon_terminal_transitions=False, 
-        scale_reward = 100.0):
+        scale_reward = 0.1):
 
         self.env = env
         assert isinstance(self.env.action_space, Box)
@@ -190,6 +131,7 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
         #     plotter.init_plot(self.env, self.policy)
 
 
+
     @overrides
     def lp_exploration(self):
 
@@ -204,9 +146,6 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
 
         path_length=0
 
-        self.initial_action = self.env.action_space.sample()
-        self.b_step_size = np.linalg.norm(self.initial_action)
-
         chain_actions = np.array([self.initial_action])
         chain_states = np.array([self.initial_state])
 
@@ -217,38 +156,106 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
         end_traj_state = 0
         itr = 0
         terminal = False
+        initial = False
+
+        h_x = 0.00001
+        h_y = 0.00008
+        h_z = 0.0001
+
+        H = np.array([h_x,  h_y, h_z])
+
+        all_H = np.array([H])
+        all_theta = np.array([])
+
 
         sample_policy = pickle.loads(pickle.dumps(self.policy))
+        self.initial_action = self.env.action_space.sample()
         last_action_chosen = self.initial_action
-
-        all_theta = np.array([])
 
         for itr in range(self.max_exploratory_steps):
 
             print ("LP Exploration Episode", itr)
             print ("Replay Buffer Sample Size", pool.size)
 
-            # next_action = np.dot(operator, last_action_chosen)
-            next_action = last_action_chosen
+            """
+            Using same H in all iterations
+            """
+
+            h_flip_x = np.random.randint(-5,4,1)
+            h_flip_y = np.random.randint(-5,4,1)
+            h_flip_z = np.random.randint(-5,4,1)
+
+            if h_flip_x > 0:
+                h_flip_x = 1
+            else:
+                h_flip_x = -1
+
+
+            if h_flip_y > 0:
+                h_flip_y = 1
+            else:
+                h_flip_y = -1
+
+
+            if h_flip_z > 0:
+                h_flip_z = 1
+            else:
+                h_flip_z = -1
+
+            h_x = np.random.uniform(0, self.b_step_size/2) 
+            h_y = np.random.uniform(0, np.sqrt(3)/2 * self.b_step_size)
+            h_z = np.sqrt(self.b_step_size**2 - h_x**2 - h_y**2)
+
+            h_x = h_flip_x * h_x
+            h_y = h_flip_y * h_y
+            h_z = h_flip_z * h_z
+
+            H = np.array([h_x,  h_y, h_z])
+
+            next_action = last_action_chosen + H
+
 
             for epoch_itr in pyprind.prog_bar(range(self.epoch_length)):
 
-                theta_mean = np.arccos( np.exp(   np.true_divide(-self.b_step_size, self.L_p) )  )
-                theta = np.random.normal(theta_mean, self.sigma, 1)   
-                all_theta = np.append(all_theta, theta)
+                one_vec_x = random.randint(-1, 1)
+                if one_vec_x == 0:
+                    one_vec_x = 1
 
-                coin_flip = np.random.randint(2, size=1)
-                if coin_flip == 0:
-                    operator = np.array([[np.cos(theta), - np.sin(theta)], [np.sin(theta),  np.cos(theta)]]).reshape(2,2)
-                elif coin_flip == 1:
-                    operator = np.array([[np.cos(theta), np.sin(theta)], [-np.sin(theta),  np.cos(theta)]]).reshape(2,2)
+                one_vec_y = random.randint(-1, 1)
+                if one_vec_y == 0:
+                    one_vec_y = 1
 
+                one_vector = np.array([one_vec_x, one_vec_y])
+                theta_mean = np.arccos( np.exp(   np.true_divide(-self.b_step_size, self.L_p) )  ) * one_vector
+
+                sigma_iden = self.sigma**2*np.identity(2)
+
+                eta = np.random.multivariate_normal(theta_mean, sigma_iden)
+
+                eta = np.concatenate((np.array([0]), eta), axis=0)
+
+                """
+                Map H_t to Spherical coordinate
+                """
+                H_conversion = self.cart2pol(H)
+
+                H = H_conversion + eta
+
+                """
+                Map H_t to Cartesian coordinate
+                """
+                H_conversion = self.pol2cart(H)
+
+                H = H_conversion
 
                 phi_t = next_action
-                phi_t_1 = np.dot(operator, phi_t)
+
+
+                phi_t_1 = phi_t + H
 
                 chosen_action = np.array([phi_t_1])
                 chain_actions = np.append(chain_actions, chosen_action, axis=0)
+
 
                 """
                 Obtained rewards in Swimmer are scaled by 100 
@@ -257,20 +264,19 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
                 chosen_state, reward, terminal, _ = self.env.step(chosen_action)
 
                 ### if an invalid state is reached
-                if terminal == True:
-                    #start a new trajectory during the exploration phase
-                    last_action_chosen = self.env.action_space.sample()
+                # if terminal == True:
+                #     #start a new trajectory during the exploration phase
+                #     last_action_chosen = self.env.action_space.sample()
 
-                    """
-                    Add the tuple of invalid state, a and r(with large penalty negative reward to replay buffer)
-                    put negative reward of -1
-                    """
-                    print ("************Reward at Invalid State", reward)
-                    print ("************Number of Steps before invalid state", epoch_itr)
-                    break
+                #     """
+                #     Add the tuple of invalid state, a and r(with large penalty negative reward to replay buffer)
+                #     put negative reward of -1
+                #     """
+                #     print ("************Reward at Invalid State", reward)
+                #     print ("************Number of Steps before invalid state", epoch_itr)
+                #     break
 
                 chain_states = np.append(chain_states, np.array([chosen_state]), axis=0)    
-
 
                 action = chosen_action
                 state = chosen_state
@@ -278,6 +284,9 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
                 end_traj_state = chosen_state
                 end_traj_action = chosen_action
 
+                #updates to be used in next iteration
+                H = phi_t_1 - phi_t
+                all_H = np.append(all_H, np.array([H]), axis=0)
                 next_action = phi_t_1
 
                 path_length += 1
@@ -285,6 +294,7 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
                 if not terminal and path_length >= self.max_path_length:
 
                     terminal = True
+                    initial = True
                     terminal_state = chosen_state
 
                     print ("LP Epoch Length Terminated")
@@ -299,18 +309,19 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
                     # only include the terminal transition in this case if the flag was set
                     if self.include_horizon_terminal_transitions:
                         #### adding large negative reward to the terminal state reward??? Check this
-                        pool.add_sample(state, action, reward * self.scale_reward*100, terminal)
+                        pool.add_sample(state, action, reward * self.scale_reward, terminal, initial)
                     break
 
                 else:
-                    pool.add_sample(state, action, reward * self.scale_reward, terminal)
+                    initial = False
+                    pool.add_sample(state, action, reward * self.scale_reward, terminal, initial)
         
 
                 if pool.size >= self.min_pool_size:
                     for update_itr in range(self.n_updates_per_sample):
                         # Train policy
                         batch = pool.random_batch(self.batch_size)
-                        updated_q_network = self.do_training(itr, batch)
+                        updated_q_network, updated_policy_network = self.do_training(itr, batch)
                         sample_policy.set_param_values(self.policy.get_param_values())
 
                 itr += 1
@@ -319,28 +330,26 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
             last_action_chosen = last_action_chosen[0, :]
 
 
-
         action_trajectory_chain = chain_actions
         state_trajectory_chain = chain_states
         end_trajectory_action = end_traj_action
         end_trajectory_state = end_traj_state
 
 
+        """
+        For Hopper
+        """
+        df_a = pd.DataFrame(action_trajectory_chain, columns=['Dim 1', 'Dim 2', 'Dim 3'])
+        df_a.to_csv("/Users/Riashat/Documents/PhD_Research/RLLAB_Gym/rllab/examples/Action_Chains/exploratory_action_v1_3D_Space_hopper.csv")
 
-        df_a = pd.DataFrame(action_trajectory_chain, columns=['Dim 1', 'Dim 2'])
-        df_a.to_csv("/Users/Riashat/Documents/PhD_Research/RLLAB_Gym/rllab/examples/Action_Chains/exploratory_action_v2.csv")
-
-        df_s = pd.DataFrame(state_trajectory_chain, columns=['Dim 1', 'Dim 2', 'Dim 3', 'Dim 4', 'Dim 5', 'Dim 6', 'Dim 7', 'Dim 8', 'Dim 9', 'Dim 10', 'Dim 11', 'Dim 12', 'Dim 13'])
-        df_s.to_csv("/Users/Riashat/Documents/PhD_Research/RLLAB_Gym/rllab/examples/Action_Chains/exploratory_states_v2.csv")
-
-        # df = pd.DataFrame({'Theta Values': all_theta,
-        #            'b_step_size': self.b_step_size)
-
-        df = pd.DataFrame(all_theta, columns=['Theta values'])
-        df.to_csv("/Users/Riashat/Documents/PhD_Research/RLLAB_Gym/rllab/examples/Action_Chains/All Exploration Params_v2.csv")
+        df_s = pd.DataFrame(state_trajectory_chain, columns=['Dim 1', 'Dim 2', 'Dim 3', 'Dim 4', 'Dim 5', 'Dim 6', 'Dim 7', 'Dim 8', 'Dim 9', 'Dim 10', 'Dim 11', 'Dim 12', 'Dim 13', 'Dim 14', 'Dim 15', 'Dim 16', 'Dim 17', 'Dim 18', 'Dim 19', 'Dim 20'])
+        df_s.to_csv("/Users/Riashat/Documents/PhD_Research/RLLAB_Gym/rllab/examples/Action_Chains/exploratory_states_v1_hopper.csv")
 
 
-        return updated_q_network, action_trajectory_chain, state_trajectory_chain, end_trajectory_action, end_trajectory_state
+
+        return updated_q_network, updated_policy_network, action_trajectory_chain, state_trajectory_chain, end_trajectory_action, end_trajectory_state
+
+
 
 
     def init_opt(self):
@@ -443,13 +452,6 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
             target_qf.get_param_values() * (1.0 - self.soft_target_tau) +
             self.qf.get_param_values() * self.soft_target_tau)
 
-
-        """
-        Check this again - whether Q network is actually updated or not
-        """
-
-
-
         self.qf_loss_averages.append(qf_loss)
         self.policy_surr_averages.append(policy_surr)
         self.q_averages.append(qval)
@@ -459,9 +461,40 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
 
         policy_network_exploratory_update = self.policy
 
-
         return q_network_exploratory_update, policy_network_exploratory_update
 
+
+
+
+    def cart2pol(self, cartesian):
+
+        x = cartesian[0]
+        y = cartesian[1]
+        z = cartesian[2]
+
+        radius = np.sqrt(x**2 + y**2 + z**2)
+        theta = np.arccos(z / radius)
+        phi = np.arctan2(y, x)
+
+        spherical = np.array([radius, theta, phi])
+
+        return spherical
+
+
+
+    def pol2cart(self, polar):
+
+        r = polar[0]
+        theta = polar[1]
+        phi = polar[2]
+
+        x = r * np.sin(theta) * np.cos(phi)
+        y = r * np.sin(theta) * np.sin(phi)
+        z = r * np.cos(theta)
+
+        cartesian = np.array([x, y, z])
+
+        return cartesian
 
 
 

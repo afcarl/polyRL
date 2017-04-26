@@ -11,7 +11,7 @@ import pickle as pickle
 import numpy as np
 import pyprind
 import lasagne
-
+from rllab.pool.simple_pool import SimpleReplayPool
 
 def parse_update_method(update_method, **kwargs):
     if update_method == 'adam':
@@ -20,65 +20,6 @@ def parse_update_method(update_method, **kwargs):
         return partial(lasagne.updates.sgd, **ext.compact(kwargs))
     else:
         raise NotImplementedError
-
-
-class SimpleReplayPool(object):
-    def __init__(
-            self, max_pool_size, observation_dim, action_dim):
-        self._observation_dim = observation_dim
-        self._action_dim = action_dim
-        self._max_pool_size = max_pool_size
-        self._observations = np.zeros(
-            (max_pool_size, observation_dim),
-        )
-        self._actions = np.zeros(
-            (max_pool_size, action_dim),
-        )
-        self._rewards = np.zeros(max_pool_size)
-        self._terminals = np.zeros(max_pool_size, dtype='uint8')
-        self._bottom = 0
-        self._top = 0
-        self._size = 0
-
-    def add_sample(self, observation, action, reward, terminal):
-        self._observations[self._top] = observation
-        self._actions[self._top] = action
-        self._rewards[self._top] = reward
-        self._terminals[self._top] = terminal
-        self._top = (self._top + 1) % self._max_pool_size
-        if self._size >= self._max_pool_size:
-            self._bottom = (self._bottom + 1) % self._max_pool_size
-        else:
-            self._size += 1
-
-    def random_batch(self, batch_size):
-        assert self._size > batch_size
-        indices = np.zeros(batch_size, dtype='uint64')
-        transition_indices = np.zeros(batch_size, dtype='uint64')
-        count = 0
-        while count < batch_size:
-            index = np.random.randint(self._bottom, self._bottom + self._size) % self._max_pool_size
-            # make sure that the transition is valid: if we are at the end of the pool, we need to discard
-            # this sample
-            if index == self._size - 1 and self._size <= self._max_pool_size:
-                continue
-            # if self._terminals[index]:
-            #     continue
-            transition_index = (index + 1) % self._max_pool_size
-            indices[count] = index
-            transition_indices[count] = transition_index
-            count += 1
-        return dict(
-            observations=self._observations[indices],
-            actions=self._actions[indices],
-            rewards=self._rewards[indices],
-            terminals=self._terminals[indices],
-            next_observations=self._observations[transition_indices]
-        )
-
-    @property
-    def size(self):
-        return self._size
 
 
 class DDPG(RLAlgorithm):
@@ -93,24 +34,24 @@ class DDPG(RLAlgorithm):
             qf,
             es,
             lp,
-            batch_size=32,
+            batch_size=64,
             n_epochs=10000,
-            epoch_length=2000,
+            epoch_length=1000,
             min_pool_size=10000,
             replay_pool_size=1000000,
             discount=0.99,
-            max_path_length=500,
-            qf_weight_decay=0.,
+            max_path_length=1000,
+            qf_weight_decay=10e-2,
             qf_update_method='adam',
-            qf_learning_rate=1e-3,
+            qf_learning_rate=10e-3,
             policy_weight_decay=0,
             policy_update_method='adam',
-            policy_learning_rate=1e-3,
+            policy_learning_rate=10e-4,
             eval_samples=10000,
             soft_target=True,
             soft_target_tau=0.001,
             n_updates_per_sample=1,
-            scale_reward=100.0,
+            scale_reward=0.1,
             include_horizon_terminal_transitions=False,
             plot=False,
             pause_for_plot=False):
@@ -221,10 +162,13 @@ class DDPG(RLAlgorithm):
             logger.push_prefix('epoch #%d | ' % epoch)
             logger.log("Training started")
 
-            # # print ("LP Exploration Phase")
-            updated_q_network, _, _, end_trajectory_action, end_trajectory_state = self.lp.lp_exploration()
+            print ("Q Network Weights before LP", self.qf.get_param_values(regularizable=True))
+
+            updated_q_network, updated_policy_network, _, _, end_trajectory_action, end_trajectory_state = self.lp.lp_exploration()
 
             self.qf = updated_q_network
+            self.policy = updated_policy_network
+
             observation = end_trajectory_state
 
 
@@ -242,7 +186,8 @@ class DDPG(RLAlgorithm):
                     self.es_path_returns.append(path_return)
                     path_length = 0
                     path_return = 0
-
+                else:
+                    initial = False
 
                 action = self.es.get_action(itr, observation, policy=sample_policy)  # qf=qf)
 
@@ -257,9 +202,9 @@ class DDPG(RLAlgorithm):
                     terminal = True
                     # only include the terminal transition in this case if the flag was set
                     if self.include_horizon_terminal_transitions:
-                        pool.add_sample(observation, action, reward * self.scale_reward, terminal)
+                        pool.add_sample(observation, action, reward * self.scale_reward, terminal, initial)
                 else:
-                    pool.add_sample(observation, action, reward * self.scale_reward, terminal)
+                    pool.add_sample(observation, action, reward * self.scale_reward, terminal, initial)
 
                 observation = next_observation
 
@@ -276,6 +221,8 @@ class DDPG(RLAlgorithm):
 
 
             logger.log("Training finished")
+            print ("DDPG, Updated Q Network Weights", self.qf.get_param_values(regularizable=True))
+
             if pool.size >= self.min_pool_size:
                 self.evaluate(epoch, pool)
                 params = self.get_epoch_snapshot(epoch)
@@ -391,6 +338,8 @@ class DDPG(RLAlgorithm):
         self.policy_surr_averages.append(policy_surr)
         self.q_averages.append(qval)
         self.y_averages.append(ys)
+
+        
 
 
 
