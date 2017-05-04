@@ -238,8 +238,7 @@ class DDPG(RLAlgorithm):
                 Not using OU Exploratory Strategy in DDPG here
                 """
                 #action = self.es.get_action(itr, observation, policy=sample_policy)  # qf=qf)
-                action = self.get_action_policy(itr, observation, policy=sample_policy)  # qf=qf)
-
+                action = self.get_action_policy(self.env, observation, policy=sample_policy)  # qf=qf)
 
                 next_observation, reward, terminal, _ = self.env.step(action)
                 path_length += 1
@@ -469,7 +468,10 @@ class DDPG(RLAlgorithm):
             es=self.es,
         )
 
+
+
     def get_action_policy(self, env_spec, observation, policy, **kwargs):
         action, _ = policy.get_action(observation)
         action_space = env_spec.action_space
         return np.clip(action, action_space.low, action_space.high)
+
