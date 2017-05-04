@@ -244,9 +244,10 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
         end_traj_action = 0
         end_traj_state = 0
 
-        H_theta = np.arccos( np.exp(   np.true_divide(-self.b_step_size, self.L_p) )  )
-        H_vector = np.random.normal(H_theta, self.sigma, self.env.action_space.shape[0])
+        # H_theta = np.arccos( np.exp(   np.true_divide(-self.b_step_size, self.L_p) )  )
+        # H_vector = np.random.normal(H_theta, self.sigma, self.env.action_space.shape[0])
 
+        H_vector = np.random.uniform(low=self.env.action_space.low, high=self.env.action_space.high, size=(self.env.action_space.shape[0],))
         H = ( self.b_step_size / LA.norm(H_vector) ) * H_vector
 
         all_H = np.array([H])
@@ -270,39 +271,16 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
             for epoch_itr in pyprind.prog_bar(range(self.epoch_length)):
 
                 if self.env.action_space.shape[0] == 6:
+                    one_vector = self.one_vector_6D()
 
-                    one_vec_x1 = random.randint(-1, 0)
-                    if one_vec_x1 == 0:
-                        one_vec_x1 = 1
-
-                    one_vec_x2 = random.randint(-1, 0)
-                    if one_vec_x2 == 0:
-                        one_vec_x2 = 1
-
-                    one_vec_x3 = random.randint(-1, 0)
-                    if one_vec_x3 == 0:
-                        one_vec_x3 = 1
-
-                    one_vec_x4 = random.randint(-1, 0)
-                    if one_vec_x4 == 0:
-                        one_vec_x4 = 1
-
-                    one_vec_x5 = random.randint(-1, 0)
-                    if one_vec_x5 == 0:
-                        one_vec_x5 = 1
-
-                    one_vector = np.array([one_vec_x1, one_vec_x2, one_vec_x3, one_vec_x4, one_vec_x5])
+                elif self.env.action_space.shape[0] == 21:
+                    one_vector = self.one_vector_21D()
 
                 elif self.env.action_space.shape[0] == 3:
+                    one_vector = self.one_vector_3D()
 
-                    one_vec_x1 = random.randint(-1, 0)
-                    if one_vec_x1 == 0:
-                        one_vec_x1 = 1
-
-                    one_vec_x2 = random.randint(-1, 0)
-                    if one_vec_x2 == 0:
-                        one_vec_x2 = 1
-                    one_vector = np.array([one_vec_x1, one_vec_x2])
+                elif self.env.action_space.shape[0] == 10:
+                    one_vector = self.one_vector_10D()
 
 
                 theta_mean = np.arccos( np.exp(   np.true_divide(-self.b_step_size, self.L_p) )  ) * one_vector
@@ -314,20 +292,30 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
                 """
                 Map H_t to Spherical coordinate
                 """
-                if self.env.action_space.shape[0] == 6:
-                    H_conversion = self.cart2pol_6D(H)
-                elif self.env.action_space.shape[0] ==3:
+                if self.env.action_space.shape[0] == 3:
                     H_conversion = self.cart2pol_3D(H)
+                elif self.env.action_space.shape[0] ==6:
+                    H_conversion = self.cart2pol_6D(H)
+                elif self.env.action_space.shape[0] ==10:
+                    H_conversion = self.cart2pol_10D(H)                 
+                elif self.env.action_space.shape[0] ==21:
+                    H_conversion = self.cart2pol_21D(H)
+
                 H = H_conversion + eta
 
 
                 """
                 Map H_t to Cartesian coordinate
                 """
-                if self.env.action_space.shape[0] == 6:
-                    H_conversion = self.pol2cart_6D(H)
-                elif self.env.action_space.shape[0] ==3:
-                    H_conversion = self.pol2cart_3D(H)                    
+                if self.env.action_space.shape[0] == 3:
+                    H_conversion = self.pol2cart_3D(H)
+                elif self.env.action_space.shape[0] ==6:
+                    H_conversion = self.pol2cart_6D(H) 
+                elif self.env.action_space.shape[0] ==10:
+                    H_conversion = self.pol2cart_10D(H)
+                elif self.env.action_space.shape[0] ==21:
+                    H_conversion = self.cart2pol_21D(H)
+
                 H = H_conversion
 
 
@@ -357,26 +345,42 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
                 #     # Note that if the last time step ends an episode, the very
                 #     # last state and observation will be ignored and not added
                 #     # to the replay pool
+                #     # print ("LP Exploration Terminated")
+                #     # print ("Restarting the chain")
+                #     # print ("Step Number at Terminal", epoch_itr)
                 #     observation = self.env.reset()
-                #     self.es.reset()
+
+                #     """
+                #     If LP Exploration reaches invalid state
+                #     sample a new action, set a new H vector
+                #     and take new action based on the new randomly chosen action
+                #     """
+                #     last_action_chosen = self.env.action_space.sample()
+                #     H_vector = np.random.uniform(low=self.env.action_space.low, high=self.env.action_space.high, size=(self.env.action_space.shape[0],))
+                #     H = ( self.b_step_size / LA.norm(H_vector) ) * H_vector
+                #     next_action = last_action_chosen + H
+
                 #     sample_policy.reset()
-                #     self.es_path_returns.append(path_return)
                 #     path_length = 0
                 #     path_return = 0
+
                     
 
                 if not terminal and path_length >= self.max_path_length:
                     terminal = True
+                
+                    #originally, it was only line above
+                    #added these below
                     terminal_state = chosen_state
-
+                    last_action_chosen = self.env.action_space.sample()
+                    H_vector = np.random.uniform(low=self.env.action_space.low, high=self.env.action_space.high, size=(self.env.action_space.shape[0],))
+                    H = ( self.b_step_size / LA.norm(H_vector) ) * H_vector
+                    next_action = last_action_chosen + H
                     path_length = 0
                     path_return = 0
                     state = self.env.reset()
                     sample_policy.reset()
                     
-                    print ("LP Epoch Length Terminated")
-                    print ("Step Number at Terminal", epoch_itr)
-
                     # only include the terminal transition in this case if the flag was set
                     if self.include_horizon_terminal_transitions:
                         pool.add_sample(observation, action, reward * self.scale_reward, terminal)
@@ -408,19 +412,19 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
 
 
 
-        if self.env.action_space.shape[0]==6:
-            df_a = pd.DataFrame(action_trajectory_chain, columns=['Dim 1', 'Dim 2', 'Dim 3', 'Dim 4', 'Dim 5', 'Dim 6'])
-            df_a.to_csv("/Users/Riashat/Documents/PhD_Research/PolyRL/rllab/data/local/experiment/PolyRL_DDPG_Walker/walker_action_chain.csv")
+        # if self.env.action_space.shape[0]==6:
+        #     df_a = pd.DataFrame(action_trajectory_chain, columns=['Dim 1', 'Dim 2', 'Dim 3', 'Dim 4', 'Dim 5', 'Dim 6'])
+        #     df_a.to_csv("/Users/Riashat/Documents/PhD_Research/PolyRL/rllab/data/local/experiment/PolyRL_DDPG_Walker/walker_action_chain.csv")
 
-            df_s = pd.DataFrame(state_trajectory_chain, columns=['Dim 1', 'Dim 2', 'Dim 3', 'Dim 4', 'Dim 5', 'Dim 6', 'Dim 7', 'Dim 8', 'Dim 9', 'Dim 10', 'Dim 11', 'Dim 12', 'Dim 13', 'Dim 14', 'Dim 15', 'Dim 16', 'Dim 17', 'Dim 18', 'Dim 19', 'Dim 20', 'Dim 21'])
-            df_s.to_csv("/Users/Riashat/Documents/PhD_Research/PolyRL/rllab/data/local/experiment/PolyRL_DDPG_Walker/walker_state_chain.csv")
+        #     df_s = pd.DataFrame(state_trajectory_chain, columns=['Dim 1', 'Dim 2', 'Dim 3', 'Dim 4', 'Dim 5', 'Dim 6', 'Dim 7', 'Dim 8', 'Dim 9', 'Dim 10', 'Dim 11', 'Dim 12', 'Dim 13', 'Dim 14', 'Dim 15', 'Dim 16', 'Dim 17', 'Dim 18', 'Dim 19', 'Dim 20', 'Dim 21'])
+        #     df_s.to_csv("/Users/Riashat/Documents/PhD_Research/PolyRL/rllab/data/local/experiment/PolyRL_DDPG_Walker/walker_state_chain.csv")
 
-        elif self.env.action_space.shape[0]==3:
-            df_a = pd.DataFrame(action_trajectory_chain, columns=['Dim 1', 'Dim 2', 'Dim 3'])
-            df_a.to_csv("/Users/Riashat/Documents/PhD_Research/PolyRL/rllab/data/local/experiment/PolyRL_DDPG_Hopper/hopper_action_chain.csv")
+        # elif self.env.action_space.shape[0]==3:
+        #     df_a = pd.DataFrame(action_trajectory_chain, columns=['Dim 1', 'Dim 2', 'Dim 3'])
+        #     df_a.to_csv("/Users/Riashat/Documents/PhD_Research/PolyRL/rllab/data/local/experiment/PolyRL_DDPG_Hopper/hopper_action_chain.csv")
 
-            df_s = pd.DataFrame(state_trajectory_chain, columns=['Dim 1', 'Dim 2', 'Dim 3', 'Dim 4', 'Dim 5', 'Dim 6', 'Dim 7', 'Dim 8', 'Dim 9', 'Dim 10', 'Dim 11', 'Dim 12', 'Dim 13', 'Dim 14', 'Dim 15', 'Dim 16', 'Dim 17', 'Dim 18', 'Dim 19', 'Dim 20'])
-            df_s.to_csv("/Users/Riashat/Documents/PhD_Research/PolyRL/rllab/data/local/experiment/PolyRL_DDPG_Hopper/hopper_state_chain.csv")
+        #     df_s = pd.DataFrame(state_trajectory_chain, columns=['Dim 1', 'Dim 2', 'Dim 3', 'Dim 4', 'Dim 5', 'Dim 6', 'Dim 7', 'Dim 8', 'Dim 9', 'Dim 10', 'Dim 11', 'Dim 12', 'Dim 13', 'Dim 14', 'Dim 15', 'Dim 16', 'Dim 17', 'Dim 18', 'Dim 19', 'Dim 20'])
+        #     df_s.to_csv("/Users/Riashat/Documents/PhD_Research/PolyRL/rllab/data/local/experiment/PolyRL_DDPG_Hopper/hopper_state_chain.csv")
 
         return updated_q_network, updated_policy_network, action_trajectory_chain, state_trajectory_chain, end_trajectory_action, end_trajectory_state
 
@@ -627,6 +631,179 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
 
 
 
+    def one_vector_3D(self):
+        one_vec_x1 = random.randint(-1, 0)
+        if one_vec_x1 == 0:
+            one_vec_x1 = 1
+
+        one_vec_x2 = random.randint(-1, 0)
+        if one_vec_x2 == 0:
+            one_vec_x2 = 1
+
+        one_vector = np.array([one_vec_x1, one_vec_x2])
+
+        return one_vector 
+
+
+    def one_vector_6D(self):
+        one_vec_x1 = random.randint(-1, 0)
+        if one_vec_x1 == 0:
+            one_vec_x1 = 1
+
+        one_vec_x2 = random.randint(-1, 0)
+        if one_vec_x2 == 0:
+            one_vec_x2 = 1
+
+        one_vec_x3 = random.randint(-1, 0)
+        if one_vec_x3 == 0:
+            one_vec_x3 = 1
+
+        one_vec_x4 = random.randint(-1, 0)
+        if one_vec_x4 == 0:
+            one_vec_x4 = 1
+
+        one_vec_x5 = random.randint(-1, 0)
+        if one_vec_x5 == 0:
+            one_vec_x5 = 1
+
+        one_vector = np.array([one_vec_x1, one_vec_x2, one_vec_x3, one_vec_x4, one_vec_x5])
+
+        return one_vector
+
+    def one_vector_10D(self):
+        one_vec_x1 = random.randint(-1, 0)
+        if one_vec_x1 == 0:
+            one_vec_x1 = 1
+
+        one_vec_x2 = random.randint(-1, 0)
+        if one_vec_x2 == 0:
+            one_vec_x2 = 1
+
+        one_vec_x3 = random.randint(-1, 0)
+        if one_vec_x3 == 0:
+            one_vec_x3 = 1
+
+        one_vec_x4 = random.randint(-1, 0)
+        if one_vec_x4 == 0:
+            one_vec_x4 = 1
+
+        one_vec_x5 = random.randint(-1, 0)
+        if one_vec_x5 == 0:
+            one_vec_x5 = 1
+
+        one_vec_x6 = random.randint(-1, 0)
+        if one_vec_x6 == 0:
+            one_vec_x6 = 1
+
+        one_vec_x7 = random.randint(-1, 0)
+        if one_vec_x7 == 0:
+            one_vec_x7 = 1
+
+        one_vec_x8 = random.randint(-1, 0)
+        if one_vec_x8 == 0:
+            one_vec_x8 = 1
+
+        one_vec_x9 = random.randint(-1, 0)
+        if one_vec_x9 == 0:
+            one_vec_x9 = 1
+
+        # one_vec_x10 = random.randint(-1, 0)
+        # if one_vec_x10 == 0:
+        #     one_vec_x10 = 1
+
+        
+        one_vector = np.array([one_vec_x1, one_vec_x2, one_vec_x3, one_vec_x4, one_vec_x5, one_vec_x6, one_vec_x7, one_vec_x8, one_vec_x9])
+
+        return one_vector
+
+
+
+    def one_vector_21D(self):
+        one_vec_x1 = random.randint(-1, 0)
+        if one_vec_x1 == 0:
+            one_vec_x1 = 1
+
+        one_vec_x2 = random.randint(-1, 0)
+        if one_vec_x2 == 0:
+            one_vec_x2 = 1
+
+        one_vec_x3 = random.randint(-1, 0)
+        if one_vec_x3 == 0:
+            one_vec_x3 = 1
+
+        one_vec_x4 = random.randint(-1, 0)
+        if one_vec_x4 == 0:
+            one_vec_x4 = 1
+
+        one_vec_x5 = random.randint(-1, 0)
+        if one_vec_x5 == 0:
+            one_vec_x5 = 1
+
+        one_vec_x6 = random.randint(-1, 0)
+        if one_vec_x6 == 0:
+            one_vec_x6 = 1
+
+        one_vec_x7 = random.randint(-1, 0)
+        if one_vec_x7 == 0:
+            one_vec_x7 = 1
+
+        one_vec_x8 = random.randint(-1, 0)
+        if one_vec_x8 == 0:
+            one_vec_x8 = 1
+
+        one_vec_x9 = random.randint(-1, 0)
+        if one_vec_x9 == 0:
+            one_vec_x9 = 1
+
+        one_vec_x10 = random.randint(-1, 0)
+        if one_vec_x10 == 0:
+            one_vec_x10 = 1
+
+        one_vec_x11 = random.randint(-1, 0)
+        if one_vec_x11 == 0:
+            one_vec_x12 = 1
+
+        one_vec_x12 = random.randint(-1, 0)
+        if one_vec_x12 == 0:
+            one_vec_x12 = 1
+
+        one_vec_x13 = random.randint(-1, 0)
+        if one_vec_x13 == 0:
+            one_vec_x13 = 1
+
+        one_vec_x14 = random.randint(-1, 0)
+        if one_vec_x14 == 0:
+            one_vec_x14 = 1
+
+        one_vec_x15 = random.randint(-1, 0)
+        if one_vec_x15 == 0:
+            one_vec_x15 = 1
+
+        one_vec_x16 = random.randint(-1, 0)
+        if one_vec_x16 == 0:
+            one_vec_x16 = 1
+
+        one_vec_x17 = random.randint(-1, 0)
+        if one_vec_x17 == 0:
+            one_vec_x17 = 1       
+
+        one_vec_x18 = random.randint(-1, 0)
+        if one_vec_x18 == 0:
+            one_vec_x18 = 1
+
+        one_vec_x19 = random.randint(-1, 0)
+        if one_vec_x19 == 0:
+            one_vec_x19 = 1
+
+        one_vec_x20 = random.randint(-1, 0)
+        if one_vec_x20 == 0:
+            one_vec_x20 = 1
+        
+        one_vector = np.array([one_vec_x1, one_vec_x2, one_vec_x3, one_vec_x4, one_vec_x5, one_vec_x6, one_vec_x7, one_vec_x8, one_vec_x9, one_vec_x10, one_vec_x11, one_vec_x12, one_vec_x13, one_vec_x14, one_vec_x15, one_vec_x16, one_vec_x17, one_vec_x18, one_vec_x19, one_vec_x20 ])
+
+        return one_vector
+
+
     def cart2pol_6D(self, cartesian):
 
         x_1 = cartesian[0]
@@ -676,6 +853,107 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
         return spherical
 
 
+    def cart2pol_10D(self, cartesian):
+
+        x_1 = cartesian[0]
+        x_2 = cartesian[1]
+        x_3 = cartesian[2]
+        x_4 = cartesian[3]
+        x_5 = cartesian[4]
+        x_6 = cartesian[5]
+        x_7 = cartesian[6]
+        x_8 = cartesian[7]
+        x_9 = cartesian[8]
+        x_10 = cartesian[9]
+
+
+        modulus = x_1**2 + x_2**2 + x_3**2  + x_4**2 + x_5**2 + x_6**2 + x_7**2 + x_8**2 + x_9**2 + x_10**2 
+
+        radius = np.sqrt(modulus)
+        phi_1 = np.arccos(x_1 / radius)
+        phi_2 = np.arccos(x_2 / radius)
+        phi_3 = np.arccos(x_3 / radius)
+        phi_4 = np.arccos(x_4 / radius)
+        phi_5 = np.arccos(x_5 / radius)
+        phi_6 = np.arccos(x_6 / radius)
+        phi_7 = np.arccos(x_7 / radius)
+
+
+        phi_8 = np.arccos(x_8 / ( np.sqrt(x_10**2 + x_9**2  + x_8**2) ) )
+
+        if x_10 >= 0:
+            phi_9 = np.arccos( x_9 / (  np.sqrt(x_10**2 + x_9**2)   ) ) 
+        else:
+            phi_9 = (2 * np.pi) - np.arccos( x_9 / (  np.sqrt(x_10**2 + x_9**2)   ) ) 
+
+        spherical = np.array([radius, phi_1, phi_2, phi_3, phi_4, phi_5, phi_6, phi_7, phi_8, phi_9])
+
+        return spherical
+
+
+
+
+    def cart2pol_21D(self, cartesian):
+
+        x_1 = cartesian[0]
+        x_2 = cartesian[1]
+        x_3 = cartesian[2]
+        x_4 = cartesian[3]
+        x_5 = cartesian[4]
+        x_6 = cartesian[5]
+        x_7 = cartesian[6]
+        x_8 = cartesian[7]
+        x_9 = cartesian[8]
+        x_10 = cartesian[9]
+        x_11 = cartesian[10]
+        x_12 = cartesian[11]
+        x_13 = cartesian[12]
+        x_14 = cartesian[13]
+        x_15 = cartesian[14]
+        x_16 = cartesian[15]
+        x_17 = cartesian[16]
+        x_18 = cartesian[17]
+        x_19 = cartesian[18]
+        x_20 = cartesian[19]
+        x_21 = cartesian[20]
+
+        modulus = x_1**2 + x_2**2 + x_3**2  + x_4**2 + x_5**2 + x_6**2 + x_7**2 + x_8**2 + x_9**2 + x_10**2 + x_11**2 + x_12**2 + x_13**2 + x_14**2 + x_15**2 + x_16**2 + x_17**2 + x_18**2 + x_19**2 + x_20**2 + x_21**2
+
+        radius = np.sqrt(modulus)
+        phi_1 = np.arccos(x_1 / radius)
+        phi_2 = np.arccos(x_2 / radius)
+        phi_3 = np.arccos(x_3 / radius)
+        phi_4 = np.arccos(x_4 / radius)
+        phi_5 = np.arccos(x_5 / radius)
+        phi_6 = np.arccos(x_6 / radius)
+        phi_7 = np.arccos(x_7 / radius)
+        phi_8 = np.arccos(x_8 / radius)
+        phi_9 = np.arccos(x_9 / radius)
+        phi_10 = np.arccos(x_10 / radius)
+        phi_11 = np.arccos(x_11 / radius)
+        phi_12 = np.arccos(x_12 / radius)
+        phi_13 = np.arccos(x_13 / radius)
+        phi_14 = np.arccos(x_14 / radius)
+        phi_15 = np.arccos(x_15 / radius)
+        phi_16 = np.arccos(x_16 / radius)
+        phi_17 = np.arccos(x_17 / radius)                
+        phi_18 = np.arccos(x_18 / radius)
+
+
+        phi_19 = np.arccos(x_19 / ( np.sqrt(x_21**2 + x_20**2  + x_19**2) ) )
+
+        if x_21 >= 0:
+            phi_20 = np.arccos( x_20 / (  np.sqrt(x_21**2 + x_20**2)   ) ) 
+        else:
+            phi_20 = (2 * np.pi) - np.arccos( x_20 / (  np.sqrt(x_21**2 + x_20**2)   ) ) 
+
+        spherical = np.array([radius, phi_1, phi_2, phi_3, phi_4, phi_5, phi_6, phi_7, phi_8, phi_9, phi_10, phi_11, phi_12, phi_13, phi_14, phi_15, phi_16, phi_17, phi_18, phi_19, phi_20])
+
+        return spherical
+
+
+
+
 
     def pol2cart_6D(self, polar):
 
@@ -712,6 +990,101 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
 
         cartesian = np.array([x_1, x_2, x_3])
 
+
+        return cartesian
+
+
+
+    def pol2cart_10D(self, polar):
+
+
+        radius = polar[0]
+        phi_1 = polar[1]
+        phi_2 = polar[2]
+        phi_3 = polar[3]
+        phi_4 = polar[4]
+        phi_5 = polar[5]
+        phi_6 = polar[6]
+        phi_7 = polar[7]
+        phi_8 = polar[8]
+        phi_9 = polar[9]
+
+
+
+        x_1 = radius * np.cos(phi_1)
+        x_2 = radius * np.sin(phi_1) * np.cos(phi_2)
+        x_3 = radius * np.sin(phi_1) * np.sin(phi_2) * np.cos(phi_3)
+        x_4 = radius * np.sin(phi_1) * np.sin(phi_2) * np.sin(phi_3) * np.cos(phi_4)
+        x_5 = radius * np.sin(phi_1) * np.sin(phi_2) * np.sin(phi_3) * np.sin(phi_4) * np.cos(phi_5)
+        x_6 = radius * np.sin(phi_1) * np.sin(phi_2) * np.sin(phi_3) * np.sin(phi_4) * np.sin(phi_5) * np.cos(phi_6)
+        x_7 = radius * np.sin(phi_1) * np.sin(phi_2) * np.sin(phi_3) * np.sin(phi_4) * np.sin(phi_5) * np.sin(phi_6) * np.cos(phi_7)
+        x_8 = radius * np.sin(phi_1) * np.sin(phi_2) * np.sin(phi_3) * np.sin(phi_4) * np.sin(phi_5) * np.sin(phi_6) * np.sin(phi_7) * np.cos(phi_8)
+        x_9 = radius * np.sin(phi_1) * np.sin(phi_2) * np.sin(phi_3) * np.sin(phi_4) * np.sin(phi_5) * np.sin(phi_6) * np.sin(phi_7) * np.sin(phi_8) * np.cos(phi_9)
+        x_10 = radius * np.sin(phi_1) * np.sin(phi_2) * np.sin(phi_3) * np.sin(phi_4) * np.sin(phi_5) * np.sin(phi_6) * np.sin(phi_7)* np.sin(phi_8) * np.sin(phi_9)
+
+
+
+        cartesian = np.array([x_1, x_2, x_3, x_4, x_5, x_6, x_7, x_8, x_9, x_10])
+
+        return cartesian
+
+
+
+
+
+
+    def pol2cart_21D(self, polar):
+
+
+        radius = polar[0]
+        phi_1 = polar[1]
+        phi_2 = polar[2]
+        phi_3 = polar[3]
+        phi_4 = polar[4]
+        phi_5 = polar[5]
+        phi_6 = polar[6]
+        phi_7 = polar[7]
+        phi_8 = polar[8]
+        phi_9 = polar[9]
+        phi_10 = polar[10]
+        phi_11 = polar[11]
+        phi_12 = polar[12]
+        phi_13 = polar[13]
+        phi_14 = polar[14]
+        phi_15 = polar[15]
+        phi_16 = polar[16]
+        phi_17 = polar[17]
+        phi_18 = polar[18]
+        phi_19 = polar[19]
+        phi_20 = polar[20]
+
+
+
+        x_1 = radius * np.cos(phi_1)
+        x_2 = radius * np.sin(phi_1) * np.cos(phi_2)
+        x_3 = radius * np.sin(phi_1) * np.sin(phi_2) * np.cos(phi_3)
+        x_4 = radius * np.sin(phi_1) * np.sin(phi_2) * np.sin(phi_3) * np.cos(phi_4)
+        x_5 = radius * np.sin(phi_1) * np.sin(phi_2) * np.sin(phi_3) * np.sin(phi_4) * np.cos(phi_5)
+        x_6 = radius * np.sin(phi_1) * np.sin(phi_2) * np.sin(phi_3) * np.sin(phi_4) * np.sin(phi_5) * np.cos(phi_6)
+        x_7 = radius * np.sin(phi_1) * np.sin(phi_2) * np.sin(phi_3) * np.sin(phi_4) * np.sin(phi_5) * np.sin(phi_6) * np.cos(phi_7)
+        x_8 = radius * np.sin(phi_1) * np.sin(phi_2) * np.sin(phi_3) * np.sin(phi_4) * np.sin(phi_5) * np.sin(phi_6) * np.sin(phi_7) * np.cos(phi_8)
+        x_9 = radius * np.sin(phi_1) * np.sin(phi_2) * np.sin(phi_3) * np.sin(phi_4) * np.sin(phi_5) * np.sin(phi_6) * np.sin(phi_7) * np.sin(phi_8) * np.cos(phi_9)
+        x_10 = radius * np.sin(phi_1) * np.sin(phi_2) * np.sin(phi_3) * np.sin(phi_4) * np.sin(phi_5) * np.sin(phi_6) * np.sin(phi_7)* np.sin(phi_8) * np.sin(phi_9) * np.cos(phi_10)
+        x_11 = radius * np.sin(phi_1) * np.sin(phi_2) * np.sin(phi_3) * np.sin(phi_4) * np.sin(phi_5) * np.sin(phi_6) * np.sin(phi_7) *  np.sin(phi_8) * np.sin(phi_9) * np.sin(phi_10) * np.cos(phi_11)
+        x_12 = radius * np.sin(phi_1) * np.sin(phi_2) * np.sin(phi_3) * np.sin(phi_4) * np.sin(phi_5) * np.sin(phi_6) * np.sin(phi_7) *  np.sin(phi_8) * np.sin(phi_9) * np.sin(phi_10) * np.sin(phi_11) * np.cos(phi_12)
+        x_13 = radius * np.sin(phi_1) * np.sin(phi_2) * np.sin(phi_3) * np.sin(phi_4) * np.sin(phi_5) * np.sin(phi_6) * np.sin(phi_7) *  np.sin(phi_8) * np.sin(phi_9) * np.sin(phi_10) * np.sin(phi_11) * np.sin(phi_12) * np.cos(phi_13)
+        x_14 = radius * np.sin(phi_1) * np.sin(phi_2) * np.sin(phi_3) * np.sin(phi_4) * np.sin(phi_5) * np.sin(phi_6) * np.sin(phi_7) *  np.sin(phi_8) * np.sin(phi_9) * np.sin(phi_10) * np.sin(phi_11) * np.sin(phi_12) * np.sin(phi_13) * np.cos(phi_14)
+        x_15 = radius * np.sin(phi_1) * np.sin(phi_2) * np.sin(phi_3) * np.sin(phi_4) * np.sin(phi_5) * np.sin(phi_6) * np.sin(phi_7) *  np.sin(phi_8) * np.sin(phi_9) * np.sin(phi_10) * np.sin(phi_11) * np.sin(phi_12) * np.sin(phi_13) * np.sin(phi_14) * np.cos(phi_15)
+        x_16 = radius * np.sin(phi_1) * np.sin(phi_2) * np.sin(phi_3) * np.sin(phi_4) * np.sin(phi_5) * np.sin(phi_6) * np.sin(phi_7) *  np.sin(phi_8) * np.sin(phi_9) * np.sin(phi_10) * np.sin(phi_11) * np.sin(phi_12) * np.sin(phi_13) * np.sin(phi_14) * np.sin(phi_15) * np.cos(phi_16)
+        x_17 = radius * np.sin(phi_1) * np.sin(phi_2) * np.sin(phi_3) * np.sin(phi_4) * np.sin(phi_5) * np.sin(phi_6) * np.sin(phi_7) *  np.sin(phi_8) * np.sin(phi_9) * np.sin(phi_10) * np.sin(phi_11) * np.sin(phi_12) * np.sin(phi_13) * np.sin(phi_14) * np.sin(phi_15) * np.sin(phi_16) * np.cos(phi_17)
+        x_18 = radius * np.sin(phi_1) * np.sin(phi_2) * np.sin(phi_3) * np.sin(phi_4) * np.sin(phi_5) * np.sin(phi_6) * np.sin(phi_7) *  np.sin(phi_8) * np.sin(phi_9) * np.sin(phi_10) * np.sin(phi_11) * np.sin(phi_12) * np.sin(phi_13) * np.sin(phi_14) * np.sin(phi_15) * np.sin(phi_16) * np.sin(phi_17) * np.cos(phi_18)
+        x_19 = radius * np.sin(phi_1) * np.sin(phi_2) * np.sin(phi_3) * np.sin(phi_4) * np.sin(phi_5) * np.sin(phi_6) * np.sin(phi_7) *  np.sin(phi_8) * np.sin(phi_9) * np.sin(phi_10) * np.sin(phi_11) * np.sin(phi_12) * np.sin(phi_13) * np.sin(phi_14) * np.sin(phi_15) * np.sin(phi_16) * np.sin(phi_17) * np.sin(phi_18) * np.cos(phi_19)
+        x_20 = radius * np.sin(phi_1) * np.sin(phi_2) * np.sin(phi_3) * np.sin(phi_4) * np.sin(phi_5) * np.sin(phi_6) * np.sin(phi_7) *  np.sin(phi_8) * np.sin(phi_9) * np.sin(phi_10) * np.sin(phi_11) * np.sin(phi_12) * np.sin(phi_13) * np.sin(phi_14) * np.sin(phi_15) * np.sin(phi_16) * np.sin(phi_17) * np.sin(phi_18) * np.sin(phi_19) * np.cos(phi_20)
+        x_21 = radius * np.sin(phi_1) * np.sin(phi_2) * np.sin(phi_3) * np.sin(phi_4) * np.sin(phi_5) * np.sin(phi_6) * np.sin(phi_7) *  np.sin(phi_8) * np.sin(phi_9) * np.sin(phi_10) * np.sin(phi_11) * np.sin(phi_12) * np.sin(phi_13) * np.sin(phi_14) * np.sin(phi_15) * np.sin(phi_16) * np.sin(phi_17) * np.sin(phi_18) * np.sin(phi_19) * np.sin(phi_20) 
+
+
+
+        cartesian = np.array([x_1, x_2, x_3, x_4, x_5, x_6, x_7, x_8, x_9, x_10, x_11, x_12, x_13, x_14, x_15, x_16, x_17, x_18, x_19, x_20, x_21 ])
 
         return cartesian
 

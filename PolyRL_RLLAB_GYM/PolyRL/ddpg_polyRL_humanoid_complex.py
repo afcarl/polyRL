@@ -7,9 +7,8 @@ from rllab.q_functions.continuous_mlp_q_function import ContinuousMLPQFunction
 from rllab.exploration_strategies.persistence_length_higher_dimensions import Persistence_Length_Exploration
 
 
-
-from rllab.envs.mujoco.walker2d_env import Walker2DEnv
-env = normalize(Walker2DEnv())
+from rllab.envs.mujoco.humanoid_env import HumanoidEnv
+env = normalize(HumanoidEnv())
 
 
 print ("State Space", env.observation_space)
@@ -42,7 +41,8 @@ for l_p_ind in range(len(L_p_param)):
 
             def run_task(*_):
 
-                env = normalize(Walker2DEnv())
+                env = normalize(HumanoidEnv())
+
 
                 policy = DeterministicMLPPolicy(
                     env_spec=env.spec,
@@ -110,7 +110,7 @@ for l_p_ind in range(len(L_p_param)):
                 snapshot_mode="last",
                 # Specifies the seed for the experiment. If this is not provided, a random seed
                 # will be used
-                exp_name="PolyRL_DDPG_Walker_Fine_Tuning_" + str(L_p_param[l_p_ind]),
+                exp_name="PolyRL_DDPG_Humanoid_Complex_Fine_Tuning_" + str(L_p_param[l_p_ind]),
                 seed=1,
                 # plot=True,
             )

@@ -9,80 +9,108 @@ from rllab.exploration_strategies.persistence_length_higher_dimensions import Pe
 from rllab.envs.mujoco.hopper_env import HopperEnv
 env = normalize(HopperEnv())
 
-print ("State Space", env.observation_space.shape)
-print ("Action Space", env.action_space.shape)
+#using unnormalized environment
+# env = HopperEnv()
+
+print ("State Space", env.observation_space)
+print ("Action Space", env.action_space)
 
 
-def run_task(*_):
-    env = normalize(HopperEnv())
-
-    policy = DeterministicMLPPolicy(
-        env_spec=env.spec,
-        # The neural network policy should have two hidden layers, each with 32 hidden units.
-        hidden_sizes=(32, 32)
-    )
-
-    es = OUStrategy(env_spec=env.spec)
-
-    qf = ContinuousMLPQFunction(
-        env_spec=env.spec,
-        hidden_sizes=(32, 32)
-    )
+"""
+PolyRL Hyperparameters
+"""
+L_p_param = [0.004, 0.04, 0.08, 0.16, 0.2, 0.4, 0.8, 2, 4]
+b_step_size = [0.0004]
+sigma_param = [0.1]
 
 
-    """
-    Persistence Length Exploration
-    """
-    lp = Persistence_Length_Exploration(
-        env=env, 
-        qf=qf, 
-        policy=policy,
-        L_p=0.08,
-        b_step_size=0.0004, 
-        sigma = 0.1,
-        max_exploratory_steps = 12,
-        batch_size=32,
-        n_epochs=1000,
-        scale_reward=0.01,
-        epoch_length=1000,
-        qf_learning_rate=0.001,
-        policy_learning_rate=0.0001,
-        )
 
 
-    """
-    DDPG
-    """
 
-    algo = DDPG(
-        env=env,
-        policy=policy,
-        es=es,
-        qf=qf,
-        lp=lp,
-        batch_size=64,
-        max_path_length=100,
-        epoch_length=1000,
-        min_pool_size=10000,
-        n_epochs=1000,
-        discount=0.99,
-        scale_reward=0.01,
-        qf_learning_rate=0.001,
-        policy_learning_rate=0.0001,
-        # Uncomment both lines (this and the plot parameter below) to enable plotting
-        # plot=True,
-    )
-    algo.train()
+num_episodes = 3000
+steps_per_episode = 1000
+max_exploratory_steps_iters = 20
+batch_size_value = 64
 
-run_experiment_lite(
-    run_task,
-    # Number of parallel workers for sampling
-    n_parallel=1,
-    # Only keep the snapshot parameters for the last iteration
-    snapshot_mode="last",
-    # Specifies the seed for the experiment. If this is not provided, a random seed
-    # will be used
-    exp_name="PolyRL_DDPG_Hopper",
-    seed=1,
-    # plot=True,
-)
+
+
+for l_p_ind in range(len(L_p_param)):
+
+    for b_ind in range(len(b_step_size)):
+
+        for s_ind in range(len(sigma_param)):
+
+            def run_task(*_):
+
+                env = normalize(HopperEnv())
+                # env = HopperEnv()
+
+                policy = DeterministicMLPPolicy(
+                    env_spec=env.spec,
+                    # The neural network policy should have two hidden layers, each with 32 hidden units.
+                    hidden_sizes=(32, 32)
+                )
+
+                es = OUStrategy(env_spec=env.spec)
+
+                qf = ContinuousMLPQFunction(
+                    env_spec=env.spec,
+                    hidden_sizes=(32, 32)
+                )
+
+
+                """
+                Persistence Length Exploration
+                """
+                lp = Persistence_Length_Exploration(
+                    env=env, 
+                    qf=qf, 
+                    policy=policy,
+                    L_p=L_p_param[l_p_ind],
+                    b_step_size=b_step_size[b_ind], 
+                    sigma = sigma_param[s_ind],
+                    max_exploratory_steps = max_exploratory_steps_iters,
+                    batch_size=batch_size_value,
+                    n_epochs=num_episodes,
+                    scale_reward=0.01,
+                    epoch_length=steps_per_episode,
+                    qf_learning_rate=0.001,
+                    policy_learning_rate=0.0001,
+                    )
+
+
+                """
+                DDPG
+                """
+                algo = DDPG(
+                    env=env,
+                    policy=policy,
+                    es=es,
+                    qf=qf,
+                    lp=lp,
+                    batch_size=batch_size_value,
+                    max_path_length=100,
+                    epoch_length=steps_per_episode,
+                    min_pool_size=10000,
+                    n_epochs=num_episodes,
+                    discount=0.99,
+                    scale_reward=0.01,
+                    qf_learning_rate=0.001,
+                    policy_learning_rate=0.0001,
+                    # Uncomment both lines (this and the plot parameter below) to enable plotting
+                    # plot=True,
+                )
+                algo.train()
+
+            run_experiment_lite(
+                run_task,
+                # Number of parallel workers for sampling
+                n_parallel=1,
+                # Only keep the snapshot parameters for the last iteration
+                snapshot_mode="last",
+                # Specifies the seed for the experiment. If this is not provided, a random seed
+                # will be used
+                exp_name="PolyRL_DDPG_Hopper_Fine_Tuning_" + str(L_p_param[l_p_ind]),
+                seed=1,
+                # plot=True,
+            )
