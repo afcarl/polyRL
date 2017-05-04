@@ -110,7 +110,7 @@ for l_p_ind in range(len(L_p_param)):
                 snapshot_mode="last",
                 # Specifies the seed for the experiment. If this is not provided, a random seed
                 # will be used
-                exp_name="PolyRL_DDPG_Walker_Fine_Tuning_" + str(L_p_param[l_p_ind]),
+                exp_name="PolyRL_DDPG_Walker_Fine_Tuning/" + "Parameter_" + str(L_p_param[l_p_ind]),
                 seed=1,
                 # plot=True,
             )
