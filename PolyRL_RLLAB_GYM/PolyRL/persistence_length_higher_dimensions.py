@@ -223,7 +223,6 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
         )
         self.start_worker()
 
-
         self.init_opt()
         itr = 0
         path_length = 0
@@ -235,18 +234,19 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
 
         sample_policy = pickle.loads(pickle.dumps(self.policy))
 
+        """
+        For storing trajectory maps
+        """
         chain_actions = np.array([self.initial_action])
         chain_states = np.array([observation])
-
         action_trajectory_chain= 0
         state_trajectory_chain = 0
-
         end_traj_action = 0
         end_traj_state = 0
 
-        # H_theta = np.arccos( np.exp(   np.true_divide(-self.b_step_size, self.L_p) )  )
-        # H_vector = np.random.normal(H_theta, self.sigma, self.env.action_space.shape[0])
-
+        """
+        H vector initialised ( ||H|| = b_0)
+        """
         H_vector = np.random.uniform(low=self.env.action_space.low, high=self.env.action_space.high, size=(self.env.action_space.shape[0],))
         H = ( self.b_step_size / LA.norm(H_vector) ) * H_vector
 
@@ -322,64 +322,70 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
                 phi_t = next_action
                 phi_t_1 = phi_t + H
 
+                #to maintain conistency with ddpg code
                 chosen_action = np.array([phi_t_1])
                 chain_actions = np.append(chain_actions, chosen_action, axis=0)
+                chosen_action = chosen_action[0,:]
 
+                #step in environment with chosen action
                 chosen_state, reward, terminal, _ = self.env.step(chosen_action)
                 chain_states = np.append(chain_states, np.array([chosen_state]), axis=0)    
 
                 action = chosen_action
                 state = chosen_state
+
+                #for storing trajectory purposes
                 end_traj_state = chosen_state
                 end_traj_action = chosen_action
 
                 #updates to be used in next iteration
                 H = phi_t_1 - phi_t
+
+
                 all_H = np.append(all_H, np.array([H]), axis=0)
                 next_action = phi_t_1
 
                 path_length += 1
 
                 # Execute policy
-                # if terminal:  # or path_length > self.max_path_length:
-                #     # Note that if the last time step ends an episode, the very
-                #     # last state and observation will be ignored and not added
-                #     # to the replay pool
-                #     # print ("LP Exploration Terminated")
-                #     # print ("Restarting the chain")
-                #     # print ("Step Number at Terminal", epoch_itr)
-                #     observation = self.env.reset()
+                if terminal:  # or path_length > self.max_path_length:
+                    # Note that if the last time step ends an episode, the very
+                    # last state and observation will be ignored and not added
+                    # to the replay pool
+                    # print ("LP Exploration Terminated")
+                    # print ("Restarting the chain")
+                    # print ("Step Number at Terminal", epoch_itr)
+                    observation = self.env.reset()
 
-                #     """
-                #     If LP Exploration reaches invalid state
-                #     sample a new action, set a new H vector
-                #     and take new action based on the new randomly chosen action
-                #     """
-                #     last_action_chosen = self.env.action_space.sample()
-                #     H_vector = np.random.uniform(low=self.env.action_space.low, high=self.env.action_space.high, size=(self.env.action_space.shape[0],))
-                #     H = ( self.b_step_size / LA.norm(H_vector) ) * H_vector
-                #     next_action = last_action_chosen + H
+                    """
+                    If LP Exploration reaches invalid state
+                    sample a new action, set a new H vector
+                    and take new action based on the new randomly chosen action
+                    """
+                    last_action_chosen = self.env.action_space.sample()
+                    H_vector = np.random.uniform(low=self.env.action_space.low, high=self.env.action_space.high, size=(self.env.action_space.shape[0],))
+                    H = ( self.b_step_size / LA.norm(H_vector) ) * H_vector
+                    next_action = last_action_chosen + H
 
-                #     sample_policy.reset()
-                #     path_length = 0
-                #     path_return = 0
+                    sample_policy.reset()
+                    path_length = 0
+                    path_return = 0
 
                     
 
                 if not terminal and path_length >= self.max_path_length:
                     terminal = True
                 
-                    #originally, it was only line above
                     #added these below
-                    terminal_state = chosen_state
-                    last_action_chosen = self.env.action_space.sample()
-                    H_vector = np.random.uniform(low=self.env.action_space.low, high=self.env.action_space.high, size=(self.env.action_space.shape[0],))
-                    H = ( self.b_step_size / LA.norm(H_vector) ) * H_vector
-                    next_action = last_action_chosen + H
-                    path_length = 0
-                    path_return = 0
-                    state = self.env.reset()
-                    sample_policy.reset()
+                    # terminal_state = chosen_state
+                    # last_action_chosen = self.env.action_space.sample()
+                    # H_vector = np.random.uniform(low=self.env.action_space.low, high=self.env.action_space.high, size=(self.env.action_space.shape[0],))
+                    # H = ( self.b_step_size / LA.norm(H_vector) ) * H_vector
+                    # next_action = last_action_chosen + H
+                    # path_length = 0
+                    # path_return = 0
+                    # state = self.env.reset()
+                    # sample_policy.reset()
                     
                     # only include the terminal transition in this case if the flag was set
                     if self.include_horizon_terminal_transitions:
@@ -389,7 +395,7 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
                     pool.add_sample(observation, action, reward * self.scale_reward, terminal)
 
                 observation = state
-                #observation = next_observation
+
 
                 if pool.size >= self.min_pool_size:
                     for update_itr in range(self.n_updates_per_sample):
@@ -401,8 +407,6 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
                 itr += 1
 
             last_action_chosen = action
-            last_action_chosen = last_action_chosen[0, :]
-
 
         action_trajectory_chain = chain_actions
         state_trajectory_chain = chain_states
@@ -410,21 +414,30 @@ class Persistence_Length_Exploration(ExplorationStrategy, Serializable):
         end_trajectory_state = end_traj_state
 
 
+        if self.env.action_space.shape[0]==6:
+            df_a = pd.DataFrame(action_trajectory_chain, columns=['Dim 1', 'Dim 2', 'Dim 3', 'Dim 4', 'Dim 5', 'Dim 6'])
+            df_a.to_csv("/Users/Riashat/Documents/PhD_Research/PolyRL/rllab/polyrl_results/Action_Maps/PolyRL_DDPG_HalfCheetah/halfcheetah_action_chain.csv")
+
+            df_s = pd.DataFrame(state_trajectory_chain, columns=['Dim 1', 'Dim 2', 'Dim 3', 'Dim 4', 'Dim 5', 'Dim 6', 'Dim 7', 'Dim 8', 'Dim 9', 'Dim 10', 'Dim 11', 'Dim 12', 'Dim 13', 'Dim 14', 'Dim 15', 'Dim 16', 'Dim 17', 'Dim 18', 'Dim 19', 'Dim 20'])
+            df_s.to_csv("/Users/Riashat/Documents/PhD_Research/PolyRL/rllab/polyrl_results/Action_Maps/PolyRL_DDPG_HalfCheetah/halfcheetah_state_chain.csv")
+
+        elif self.env.action_space.shape[0]==3:
+            df_a = pd.DataFrame(action_trajectory_chain, columns=['Dim 1', 'Dim 2', 'Dim 3'])
+            df_a.to_csv("/Users/Riashat/Documents/PhD_Research/PolyRL/rllab/polyrl_results/Action_Maps/PolyRL_DDPG_Hopper/hopper_action_chain.csv")
+
+            df_s = pd.DataFrame(state_trajectory_chain, columns=['Dim 1', 'Dim 2', 'Dim 3', 'Dim 4', 'Dim 5', 'Dim 6', 'Dim 7', 'Dim 8', 'Dim 9', 'Dim 10', 'Dim 11', 'Dim 12', 'Dim 13', 'Dim 14', 'Dim 15', 'Dim 16', 'Dim 17', 'Dim 18', 'Dim 19', 'Dim 20'])
+            df_s.to_csv("/Users/Riashat/Documents/PhD_Research/PolyRL/rllab/polyrl_results/Action_Maps/PolyRL_DDPG_Hopper/hopper_state_chain.csv")
 
 
-        # if self.env.action_space.shape[0]==6:
-        #     df_a = pd.DataFrame(action_trajectory_chain, columns=['Dim 1', 'Dim 2', 'Dim 3', 'Dim 4', 'Dim 5', 'Dim 6'])
-        #     df_a.to_csv("/Users/Riashat/Documents/PhD_Research/PolyRL/rllab/data/local/experiment/PolyRL_DDPG_Walker/walker_action_chain.csv")
+        elif self.env.action_space.shape[0]==10:
+            df_a = pd.DataFrame(action_trajectory_chain, columns=['Dim 1', 'Dim 2', 'Dim 3', 'Dim 4', 'Dim 5', 'Dim 6', 'Dim 7', 'Dim 8','Dim 9', 'Dim 10'])
+            df_a.to_csv("/Users/Riashat/Documents/PhD_Research/PolyRL/rllab/polyrl_results/Action_Maps/PolyRL_DDPG_Simple_Humanoid/simple_humanoid_action_chain.csv")
 
-        #     df_s = pd.DataFrame(state_trajectory_chain, columns=['Dim 1', 'Dim 2', 'Dim 3', 'Dim 4', 'Dim 5', 'Dim 6', 'Dim 7', 'Dim 8', 'Dim 9', 'Dim 10', 'Dim 11', 'Dim 12', 'Dim 13', 'Dim 14', 'Dim 15', 'Dim 16', 'Dim 17', 'Dim 18', 'Dim 19', 'Dim 20', 'Dim 21'])
-        #     df_s.to_csv("/Users/Riashat/Documents/PhD_Research/PolyRL/rllab/data/local/experiment/PolyRL_DDPG_Walker/walker_state_chain.csv")
+            state_trajectory_chain_store = state_trajectory_chain[:, 0:20] 
 
-        # elif self.env.action_space.shape[0]==3:
-        #     df_a = pd.DataFrame(action_trajectory_chain, columns=['Dim 1', 'Dim 2', 'Dim 3'])
-        #     df_a.to_csv("/Users/Riashat/Documents/PhD_Research/PolyRL/rllab/data/local/experiment/PolyRL_DDPG_Hopper/hopper_action_chain.csv")
+            df_s = pd.DataFrame(state_trajectory_chain_store, columns=['Dim 1', 'Dim 2', 'Dim 3', 'Dim 4', 'Dim 5', 'Dim 6', 'Dim 7', 'Dim 8', 'Dim 9', 'Dim 10', 'Dim 11', 'Dim 12', 'Dim 13', 'Dim 14', 'Dim 15', 'Dim 16', 'Dim 17', 'Dim 18', 'Dim 19', 'Dim 20'])
+            df_s.to_csv("/Users/Riashat/Documents/PhD_Research/PolyRL/rllab/polyrl_results/Action_Maps/PolyRL_DDPG_Simple_Humanoid/simple_humanoid_state_chain.csv")
 
-        #     df_s = pd.DataFrame(state_trajectory_chain, columns=['Dim 1', 'Dim 2', 'Dim 3', 'Dim 4', 'Dim 5', 'Dim 6', 'Dim 7', 'Dim 8', 'Dim 9', 'Dim 10', 'Dim 11', 'Dim 12', 'Dim 13', 'Dim 14', 'Dim 15', 'Dim 16', 'Dim 17', 'Dim 18', 'Dim 19', 'Dim 20'])
-        #     df_s.to_csv("/Users/Riashat/Documents/PhD_Research/PolyRL/rllab/data/local/experiment/PolyRL_DDPG_Hopper/hopper_state_chain.csv")
 
         return updated_q_network, updated_policy_network, action_trajectory_chain, state_trajectory_chain, end_trajectory_action, end_trajectory_state
 
